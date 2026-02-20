@@ -6,7 +6,29 @@ function fmtMoney(n) {
   const x = Number(n ?? 0);
   return `RD$ ${x.toFixed(2)}`;
 }
-
+function startOfDay(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
+}
+function startOfNextDay(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1, 0, 0, 0, 0);
+}
+function startOfWeek(d = new Date()) {
+  const x = new Date(d);
+  const day = x.getDay(); // 0 domingo
+  const diff = (day === 0 ? -6 : 1) - day; // lunes como inicio
+  x.setDate(x.getDate() + diff);
+  return startOfDay(x);
+}
+function startOfNextWeek(d = new Date()) {
+  const s = startOfWeek(d);
+  return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 7, 0, 0, 0, 0);
+}
+function startOfMonth(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+}
+function startOfNextMonth(d = new Date()) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0);
+}
 function startOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
 }
@@ -27,12 +49,29 @@ export default function Dashboard() {
     facturas_count: 0,
   });
   const [msg, setMsg] = useState("");
+  const [mode, setMode] = useState("mes"); // hoy | semana | mes | rango
+  const [fromDate, setFromDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [toDate, setToDate] = useState(() => new Date().toISOString().slice(0, 10));
 
   const range = useMemo(() => {
-    const from = startOfMonth();
-    const to = startOfNextMonth();
-    return { from, to };
-  }, []);
+    const now = new Date();
+
+    if (mode === "hoy") {
+      return { from: startOfDay(now), to: startOfNextDay(now), label: "Hoy" };
+    }
+    if (mode === "semana") {
+      return { from: startOfWeek(now), to: startOfNextWeek(now), label: "Esta semana" };
+    }
+    if (mode === "mes") {
+      return { from: startOfMonth(now), to: startOfNextMonth(now), label: "Este mes" };
+    }
+
+    // rango personalizado (to exclusivo: +1 día)
+    const f = new Date(fromDate + "T00:00:00");
+    const t = new Date(toDate + "T00:00:00");
+    const tPlus = new Date(t.getFullYear(), t.getMonth(), t.getDate() + 1, 0, 0, 0, 0);
+    return { from: f, to: tPlus, label: "Rango" };
+  }, [mode, fromDate, toDate]);
 
   const loadSummary = async () => {
     setLoading(true);
@@ -64,7 +103,7 @@ export default function Dashboard() {
 
   useEffect(() => {
     loadSummary();
-  }, []);
+  }, [mode, fromDate, toDate]);
 
   const monthLabel = new Date().toLocaleString("es-DO", { month: "long", year: "numeric" });
 
@@ -87,6 +126,54 @@ export default function Dashboard() {
             Salir
           </button>
         </div>
+      </div>
+      <div className="mt-3 border rounded-2xl bg-white p-3">
+        <div className="grid grid-cols-4 gap-2">
+          {[
+            { k: "hoy", t: "Hoy" },
+            { k: "semana", t: "Semana" },
+            { k: "mes", t: "Mes" },
+            { k: "rango", t: "Rango" },
+          ].map((x) => (
+            <button
+              key={x.k}
+              onClick={() => setMode(x.k)}
+              className={
+                "p-2 rounded-xl border text-sm transition " +
+                (mode === x.k ? "bg-black text-white border-black" : "bg-white")
+              }
+            >
+              {x.t}
+            </button>
+          ))}
+        </div>
+
+        {mode === "rango" && (
+          <div className="mt-3 grid grid-cols-2 gap-2">
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Desde</p>
+              <input
+                type="date"
+                className="w-full border rounded-xl p-2"
+                value={fromDate}
+                onChange={(e) => setFromDate(e.target.value)}
+              />
+            </div>
+            <div>
+              <p className="text-xs text-gray-600 mb-1">Hasta</p>
+              <input
+                type="date"
+                className="w-full border rounded-xl p-2"
+                value={toDate}
+                onChange={(e) => setToDate(e.target.value)}
+              />
+            </div>
+          </div>
+        )}
+
+        <p className="mt-2 text-xs text-gray-600">
+          {range.from.toLocaleDateString()} → {new Date(range.to.getTime() - 1).toLocaleDateString()}
+        </p>
       </div>
 
       {msg && (
@@ -126,7 +213,7 @@ export default function Dashboard() {
       </div>
 
       {/* Acciones rápidas */}
-      
+
     </div>
   );
 }
