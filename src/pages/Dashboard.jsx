@@ -23,12 +23,7 @@ function startOfNextWeek(d = new Date()) {
   const s = startOfWeek(d);
   return new Date(s.getFullYear(), s.getMonth(), s.getDate() + 7, 0, 0, 0, 0);
 }
-function startOfMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
-}
-function startOfNextMonth(d = new Date()) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 1, 0, 0, 0, 0);
-}
+
 function startOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
 }
