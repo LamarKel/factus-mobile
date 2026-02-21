@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
 
 function fmtMoney(n) {
@@ -159,128 +160,187 @@ export default function Facturas() {
       )}
 
       {/* DETALLE (modal) */}
-      {selected && (
-        <div className="fixed inset-0 bg-black/40 flex items-end">
-          <div className="bg-white w-full rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
-            <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold">Detalle de factura</h2>
-              <button onClick={closeDetail} className="text-sm underline">
-                Cerrar
-              </button>
-            </div>
+      {selected && (() => {
+        const tieneAbonos = (payments?.length ?? 0) > 0;
+        const bloqueaCancelar =
+          selected?.tipo_pago !== "cash" && tieneAbonos;
 
-            <div className="mt-3 border rounded-2xl p-4">
-              <p className="text-sm text-gray-600">Cliente</p>
-              <p className="font-semibold">
-                {selected.customer
-                  ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
-                  : "Consumidor final"}
-              </p>
+        return (
 
-              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Tipo pago</p>
-                  <p className="font-semibold">{selected.tipo_pago}</p>
-                </div>
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Estado</p>
-                  <p className="font-semibold">{selected.status}</p>
-                </div>
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Total</p>
-                  <p className="font-semibold">{fmtMoney(selected.total)}</p>
-                </div>
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Pendiente</p>
-                  <p className="font-semibold">{fmtMoney(selected.pendiente)}</p>
-                </div>
+          <div className="fixed inset-0 bg-black/40 flex items-end">
+            <div className="bg-white w-full rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between">
+                <h2 className="text-lg font-bold">Detalle de factura</h2>
+                <button onClick={closeDetail} className="text-sm underline">
+                  Cerrar
+                </button>
               </div>
-            </div>
 
-            <div className="mt-4 border rounded-2xl p-4">
-              <p className="font-semibold mb-2">Productos</p>
-
-              {detailLoading ? (
-                <p className="text-sm">Cargando detalle...</p>
-              ) : items.length === 0 ? (
-                <p className="text-sm text-gray-500">Sin items.</p>
-              ) : (
-                <div className="space-y-2">
-                  {items.map((it) => (
-                    <div key={it.id} className="border rounded-xl p-3">
-                      <div className="flex justify-between gap-3">
-                        <div className="min-w-0">
-                          <p className="font-semibold truncate">
-                            {it.nombre_producto_snapshot}
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            {it.codigo_snapshot ? `Código: ${it.codigo_snapshot}` : ""}
-                          </p>
-                          <p className="text-xs text-gray-600">
-                            Cant: {it.cantidad} · Unit: {fmtMoney(it.precio_venta_unit)}
-                          </p>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold">{fmtMoney(it.subtotal)}</p>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-
-            <div className="mt-4 border rounded-2xl p-4">
-              <p className="font-semibold mb-2">Pagos / Abonos</p>
-
-              {detailLoading ? (
-                <p className="text-sm">Cargando pagos...</p>
-              ) : payments.length === 0 ? (
-                <p className="text-sm text-gray-500">
-                  Aún no hay pagos registrados.
+              <div className="mt-3 border rounded-2xl p-4">
+                <p className="text-sm text-gray-600">Cliente</p>
+                <p className="font-semibold">
+                  {selected.customer
+                    ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
+                    : "Consumidor final"}
                 </p>
-              ) : (
-                <div className="space-y-2">
-                  {payments.map((p) => (
-                    <div key={p.id} className="border rounded-xl p-3 flex justify-between">
-                      <div>
-                        <p className="text-sm font-semibold">{fmtMoney(p.monto)}</p>
-                        <p className="text-xs text-gray-600">
-                          {new Date(p.created_at).toLocaleString()}
-                        </p>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
 
-            <div className="mt-4 border rounded-2xl p-4">
-              <p className="text-sm text-gray-600">Contabilidad básica</p>
-              <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Inversión (costo)</p>
-                  <p className="font-semibold">{fmtMoney(selected.total_costo)}</p>
-                </div>
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Ganancia</p>
-                  <p className="font-semibold">{fmtMoney(selected.total_ganancia)}</p>
-                </div>
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Pagado</p>
-                  <p className="font-semibold">{fmtMoney(selected.total_pagado)}</p>
-                </div>
-                <div className="border rounded-xl p-3">
-                  <p className="text-xs text-gray-600">Pendiente</p>
-                  <p className="font-semibold">{fmtMoney(selected.pendiente)}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Tipo pago</p>
+                    <p className="font-semibold">{selected.tipo_pago}</p>
+                  </div>
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Estado</p>
+                    <p className="font-semibold">{selected.status}</p>
+                  </div>
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Total</p>
+                    <p className="font-semibold">{fmtMoney(selected.total)}</p>
+                  </div>
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Pendiente</p>
+                    <p className="font-semibold">{fmtMoney(selected.pendiente)}</p>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* nota: luego pondremos aquí el botón "Agregar abono" */}
+              <div className="mt-4 border rounded-2xl p-4">
+                <p className="font-semibold mb-2">Productos</p>
+
+                {detailLoading ? (
+                  <p className="text-sm">Cargando detalle...</p>
+                ) : items.length === 0 ? (
+                  <p className="text-sm text-gray-500">Sin items.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {items.map((it) => (
+                      <div key={it.id} className="border rounded-xl p-3">
+                        <div className="flex justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-semibold truncate">
+                              {it.nombre_producto_snapshot}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              {it.codigo_snapshot ? `Código: ${it.codigo_snapshot}` : ""}
+                            </p>
+                            <p className="text-xs text-gray-600">
+                              Cant: {it.cantidad} · Unit: {fmtMoney(it.precio_venta_unit)}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-semibold">{fmtMoney(it.subtotal)}</p>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="mt-4 border rounded-2xl p-4">
+                <p className="font-semibold mb-2">Pagos / Abonos</p>
+
+                {detailLoading ? (
+                  <p className="text-sm">Cargando pagos...</p>
+                ) : payments.length === 0 ? (
+                  <p className="text-sm text-gray-500">
+                    Aún no hay pagos registrados.
+                  </p>
+                ) : (
+                  <div className="space-y-2">
+                    {payments.map((p) => (
+                      <div key={p.id} className="border rounded-xl p-3 flex justify-between">
+                        <div>
+                          <p className="text-sm font-semibold">{fmtMoney(p.monto)}</p>
+                          <p className="text-xs text-gray-600">
+                            {new Date(p.created_at).toLocaleString()}
+                          </p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              {selected.tipo_pago !== "cash" && (payments?.length ?? 0) > 0 && selected.status !== "cancelada" && (
+  <button
+    className="mt-3 w-full border border-red-300 text-red-700 p-3 rounded-xl font-semibold"
+    onClick={async () => {
+      const ok = confirm("¿Cancelar el ÚLTIMO abono? (Esto ajusta el pendiente automáticamente)");
+      if (!ok) return;
+
+      const { error } = await supabase.rpc("delete_last_payment", {
+        p_invoice_id: selected.id,
+      });
+
+      if (error) return toast.error(error.message);
+
+      toast.success("Último abono cancelado ✅");
+      // recargar el detalle de esa factura
+      await openFactura(selected); // si tu openFactura vuelve a cargar items y payments
+      await fetchFacturas();       // refrescar lista
+    }}
+  >
+    Cancelar último abono
+  </button>
+)}
+
+              <div className="mt-4 border rounded-2xl p-4">
+                <p className="text-sm text-gray-600">Contabilidad básica</p>
+                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Inversión (costo)</p>
+                    <p className="font-semibold">{fmtMoney(selected.total_costo)}</p>
+                  </div>
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Ganancia</p>
+                    <p className="font-semibold">{fmtMoney(selected.total_ganancia)}</p>
+                  </div>
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Pagado</p>
+                    <p className="font-semibold">{fmtMoney(selected.total_pagado)}</p>
+                  </div>
+                  <div className="border rounded-xl p-3">
+                    <p className="text-xs text-gray-600">Pendiente</p>
+                    <p className="font-semibold">{fmtMoney(selected.pendiente)}</p>
+                  </div>
+                </div>
+              </div>
+
+              <button
+                disabled={selected.status === "cancelada" || bloqueaCancelar}
+                className={
+                  "mt-4 w-full p-3 rounded-xl font-semibold border " +
+                  (selected.status === "cancelada" || bloqueaCancelar
+                    ? "opacity-50 cursor-not-allowed"
+                    : "border-red-300 text-red-700")
+                }
+                onClick={async () => {
+                  const ok = confirm("¿Seguro que quieres CANCELAR esta factura? Esto devolverá el inventario.");
+                  if (!ok) return;
+
+                  const { error } = await supabase.rpc("cancel_invoice", {
+                    p_invoice_id: selected.id,
+                  });
+
+                  if (error) return toast.error(error.message);
+
+                  toast.success("Factura cancelada ✅");
+                  closeDetail();
+                  fetchFacturas();
+                }}
+              >
+                {selected.status === "cancelada"
+                  ? "Factura ya cancelada"
+                  : bloqueaCancelar
+                    ? "No se puede cancelar (tiene abonos)"
+                    : "Cancelar factura"}
+              </button>
+
+              {/* nota: luego pondremos aquí el botón "Agregar abono" */}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
     </div>
   );
 }
