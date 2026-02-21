@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
-import { useNavigate } from "react-router-dom";
+
 
 function fmtMoney(n) {
   const x = Number(n ?? 0);
@@ -32,7 +32,6 @@ function startOfNextMonth(d = new Date()) {
 }
 
 export default function Dashboard() {
-  const nav = useNavigate();
 
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState({
@@ -96,30 +95,33 @@ export default function Dashboard() {
     });
   };
 
-  useEffect(() => {
-    loadSummary();
-  }, [mode, fromDate, toDate]);
+ useEffect(() => {
+  loadSummary();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+}, [range.from.getTime(), range.to.getTime()]);
 
-  const monthLabel = new Date().toLocaleString("es-DO", { month: "long", year: "numeric" });
+  const headerLabel =
+  mode === "hoy"
+    ? "Hoy"
+    : mode === "semana"
+    ? "Esta semana"
+    : mode === "mes"
+    ? new Date().toLocaleString("es-DO", { month: "long", year: "numeric" })
+    : "Rango";
 
   return (
-    <div className="min-h-screen p-4 pb-24">
+    <div className="min-h-screen ">
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-xl font-bold">Dashboard</h2>
-          <p className="text-sm text-gray-600 capitalize">{monthLabel}</p>
+          <p className="text-sm text-gray-600 capitalize">{headerLabel}</p>
         </div>
 
         <div className="flex items-center gap-3">
           <button onClick={loadSummary} className="text-sm underline">
             Actualizar
           </button>
-          <button
-            className="text-sm underline"
-            onClick={() => supabase.auth.signOut()}
-          >
-            Salir
-          </button>
+         
         </div>
       </div>
       <div className="mt-3 border rounded-2xl bg-white p-3">
