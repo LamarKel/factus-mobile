@@ -7,6 +7,7 @@ import { supabase } from "../lib/supabase";
 export default function Catalogo() {
     const { userId } = useParams();
     const [productos, setProductos] = useState([]);
+    const [perfil, setPerfil] = useState(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
     const [carrito, setCarrito] = useState({}); // { codigo: cantidad }
