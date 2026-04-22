@@ -26,9 +26,14 @@ export default function Productos() {
 
   const fetchProductos = async () => {
     setLoading(true);
+
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData.user;
+
     const { data, error } = await supabase
       .from("products")
       .select("*")
+      .eq("user_id", user.id) // 👈 esto faltaba
       .order("created_at", { ascending: false });
 
     if (!error) setProductos(data ?? []);
