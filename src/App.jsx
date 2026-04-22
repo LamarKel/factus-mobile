@@ -8,6 +8,9 @@ import Productos from "./pages/Productos";
 import Facturar from "./pages/Facturar";
 import Facturas from "./pages/Facturas";
 import Abonos from "./pages/Abonos";
+import Catalogo from "./pages/Catalogo";
+import Perfil from "./pages/Perfil";
+
 
 import AppShell from "./layout/AppShell";
 import { supabase } from "./lib/supabase";
@@ -105,6 +108,19 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route path="/catalogo" element={<Catalogo />} />
+        <Route
+          path="/perfil"
+          element={
+            <PrivateRoute>
+              <AppShell title="Perfil">
+                <Perfil />
+              </AppShell>
+            </PrivateRoute>
+          }
+        />
+
+
       </Routes>
     </BrowserRouter>
   );

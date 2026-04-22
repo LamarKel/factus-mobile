@@ -11,6 +11,7 @@ import {
   Users,
   Package,
   LogOut,
+  UserCircle,
 } from "lucide-react";
 
 const links = [
@@ -20,6 +21,8 @@ const links = [
   { to: "/abonos", label: "Abonos", Icon: Wallet },
   { to: "/clientes", label: "Clientes", Icon: Users },
   { to: "/productos", label: "Productos", Icon: Package },
+  { to: "/perfil", label: "Perfil", Icon: UserCircle },
+
 ];
 
 export default function AppShell({ title, children }) {

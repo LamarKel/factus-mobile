@@ -9,7 +9,8 @@ const emptyForm = {
   precio_venta: "",
   precio_compra: "",
   control_inventario: false,
-  cantidad: "", // solo si control_inventario = true
+  cantidad: "",
+  imagen_url: "", // solo si control_inventario = true
 };
 
 export default function Productos() {
@@ -70,6 +71,7 @@ export default function Productos() {
       precio_compra: String(p.precio_compra ?? ""),
       control_inventario: !!p.control_inventario,
       cantidad: p.cantidad === null || p.cantidad === undefined ? "" : String(p.cantidad),
+      imagen_url: p.imagen_url ?? "",
     });
     setShowForm(true);
   };
@@ -122,7 +124,8 @@ export default function Productos() {
       precio_venta: pv,
       precio_compra: pc,
       control_inventario: !!form.control_inventario,
-      cantidad: cantidadValue,
+      imagen_url: form.imagen_url.trim() || null,
+
     };
 
     let res;
@@ -269,6 +272,75 @@ export default function Productos() {
                 value={form.referencia}
                 onChange={(e) => setForm({ ...form, referencia: e.target.value })}
               />
+              {/* ── IMAGEN ── */}
+              <div className="space-y-2">
+                <p className="text-sm font-semibold text-gray-700">Imagen del producto</p>
+
+                {/* Método 1 — URL */}
+                <input
+                  className="w-full border rounded-xl p-3"
+                  placeholder="Pega una URL de imagen (https://...)"
+                  value={form.imagen_url}
+                  onChange={(e) => setForm({ ...form, imagen_url: e.target.value })}
+                />
+
+                <div className="flex items-center gap-2 text-xs text-gray-400">
+                  <div className="flex-1 h-px bg-gray-200" />
+                  <span>o</span>
+                  <div className="flex-1 h-px bg-gray-200" />
+                </div>
+
+                {/* Método 2 — subir archivo */}
+                <label className="flex items-center justify-center gap-2 w-full border-2 border-dashed border-gray-300 rounded-xl p-4 cursor-pointer text-sm text-gray-500 hover:border-gray-400 transition">
+                  📁 Subir desde el celular
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+
+                      const ext = file.name.split(".").pop();
+                      const fileName = `${Date.now()}.${ext}`;
+
+                      const { error } = await supabase.storage
+                        .from("imagen") // 👈 nombre de tu bucket
+                        .upload(fileName, file, { upsert: true });
+
+                      if (error) {
+                        alert("Error al subir imagen: " + error.message);
+                        return;
+                      }
+
+                      const { data } = supabase.storage
+                        .from("imagen")
+                        .getPublicUrl(fileName);
+
+                      setForm({ ...form, imagen_url: data.publicUrl });
+                    }}
+                  />
+                </label>
+
+                {/* Vista previa */}
+                {form.imagen_url.trim() && (
+                  <div className="relative">
+                    <img
+                      src={form.imagen_url}
+                      alt="Vista previa"
+                      className="w-full h-48 object-cover rounded-xl border"
+                      onError={(e) => (e.target.style.display = "none")}
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setForm({ ...form, imagen_url: "" })}
+                      className="absolute top-2 right-2 bg-black/50 text-white text-xs px-2 py-1 rounded-lg"
+                    >
+                      Quitar
+                    </button>
+                  </div>
+                )}
+              </div>
 
               <div className="grid grid-cols-2 gap-3">
                 <input
