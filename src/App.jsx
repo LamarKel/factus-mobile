@@ -108,7 +108,7 @@ export default function App() {
             </PrivateRoute>
           }
         />
-        <Route path="/catalogo" element={<Catalogo />} />
+        <Route path="/catalogo/:userId" element={<Catalogo />} />
         <Route
           path="/perfil"
           element={

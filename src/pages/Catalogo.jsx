@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
+import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
 
 
 export default function Catalogo() {
+    const { userId } = useParams();
     const [productos, setProductos] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
@@ -11,32 +13,31 @@ export default function Catalogo() {
     const [showCarrito, setShowCarrito] = useState(false);
 
     useEffect(() => {
-        const fetchProductos = async () => {
-            const { data, error } = await supabase
-                .from("products")
-                .select("nombre, codigo, unidad_medida, precio_venta, control_inventario, cantidad, imagen_url")
-                .order("created_at", { ascending: false });
+        if (!userId) return;
 
-            if (!error) setProductos(data ?? []);
-            setLoading(false);
-        };
-        fetchProductos();
-    }, []);
-    // Agrega este estado y useEffect al inicio del componente
-    const [perfil, setPerfil] = useState(null);
-
-    useEffect(() => {
-        const fetchPerfil = async () => {
-            const { data: userData } = await supabase.auth.getUser();
-            const { data } = await supabase
+        const fetchData = async () => {
+            // Trae perfil del dueño de esa cuenta
+            const { data: perfilData } = await supabase
                 .from("perfiles")
                 .select("nombre_tienda, telefono, logo_url")
-                .eq("user_id", userData.user.id)
+                .eq("user_id", userId)
                 .single();
-            if (data) setPerfil(data);
+
+            if (perfilData) setPerfil(perfilData);
+
+            // Trae solo los productos de ese usuario
+            const { data: productosData, error } = await supabase
+                .from("products")
+                .select("nombre, codigo, unidad_medida, precio_venta, control_inventario, cantidad, imagen_url")
+                .eq("user_id", userId)
+                .order("created_at", { ascending: false });
+
+            if (!error) setProductos(productosData ?? []);
+            setLoading(false);
         };
-        fetchPerfil();
-    }, []);
+
+        fetchData();
+    }, [userId]);
 
     const filtered = useMemo(() => {
         const s = search.trim().toLowerCase();

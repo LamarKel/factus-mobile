@@ -6,6 +6,7 @@ export default function Perfil() {
     const [saving, setSaving] = useState(false);
     const [msg, setMsg] = useState("");
     const [msgType, setMsgType] = useState("error"); // "error" | "success"
+    const [userId, setUserId] = useState("");
 
     const [form, setForm] = useState({
         nombre_tienda: "",
@@ -18,6 +19,9 @@ export default function Perfil() {
         const fetchPerfil = async () => {
             const { data: userData } = await supabase.auth.getUser();
             const user = userData.user;
+
+
+            setUserId(user.id);
 
             const { data, error } = await supabase
                 .from("perfiles")
@@ -176,6 +180,34 @@ export default function Perfil() {
                     : "bg-red-50 text-red-600"
                     }`}>
                     {msg}
+                </div>
+            )}
+            {userId && (
+                <div className="mt-6 p-4 border rounded-xl bg-gray-50">
+                    <p className="text-sm font-semibold mb-1">🔗 Link de tu catálogo</p>
+                    <p className="text-xs text-gray-500 mb-2">
+                        Comparte este link con tus clientes
+                    </p>
+                    <div className="flex gap-2">
+                        <input
+                            readOnly
+                            className="flex-1 border rounded-xl p-3 text-xs bg-white"
+                            value={`${window.location.origin}/catalogo/${userId}`}
+                        />
+                        <button
+                            type="button"
+                            onClick={() => {
+                                navigator.clipboard.writeText(
+                                    `${window.location.origin}/catalogo/${userId}`
+                                );
+                                setMsg("Link copiado.");
+                                setMsgType("success");
+                            }}
+                            className="border rounded-xl px-4 py-2 text-sm font-semibold"
+                        >
+                            Copiar
+                        </button>
+                    </div>
                 </div>
             )}
 
