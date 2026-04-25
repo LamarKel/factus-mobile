@@ -186,7 +186,7 @@ export default function Productos() {
                   <p className="font-semibold truncate">{p.nombre}</p>
                   <p className="text-xs text-gray-600">Código: {p.codigo}</p>
                   <p className="text-sm mt-1">
-                    Venta: <span className="font-semibold">RD$ {Number(p.precio_venta).toFixed(2)}</span>
+                    Venta: <span className="font-semibold">$ {Number(p.precio_venta).toFixed(2)}</span>
                   </p>
                   <p className="text-xs text-gray-600">
                     Compra: RD$ {Number(p.precio_compra).toFixed(2)}
