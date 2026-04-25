@@ -2,58 +2,68 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 
-
-
 export default function Catalogo() {
     const { userId } = useParams();
     const [productos, setProductos] = useState([]);
     const [perfil, setPerfil] = useState(null);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState("");
-    const [carrito, setCarrito] = useState({}); // { codigo: cantidad }
+    const [carrito, setCarrito] = useState({});
     const [showCarrito, setShowCarrito] = useState(false);
+    const [categoriaActiva, setCategoriaActiva] = useState("Todo");
+    const [verMasCat, setVerMasCat] = useState(null); // null = vista normal, string = ver todos de esa cat
 
     useEffect(() => {
         if (!userId) return;
-
         const fetchData = async () => {
-            // Trae perfil del dueño de esa cuenta
             const { data: perfilData } = await supabase
                 .from("perfiles")
                 .select("nombre_tienda, telefono, logo_url")
                 .eq("user_id", userId)
                 .single();
-
             if (perfilData) setPerfil(perfilData);
 
-            // Trae solo los productos de ese usuario
             const { data: productosData, error } = await supabase
                 .from("products")
-                .select("nombre, codigo, unidad_medida, precio_venta, control_inventario, cantidad, imagen_url")
+                .select("nombre, codigo, unidad_medida, precio_venta, control_inventario, cantidad, imagen_url, categoria, ventas")
                 .eq("user_id", userId)
                 .order("created_at", { ascending: false });
 
             if (!error) setProductos(productosData ?? []);
             setLoading(false);
         };
-
         fetchData();
     }, [userId]);
 
+    // Categorías únicas
+    const categorias = useMemo(() => {
+        const cats = [...new Set(productos.map((p) => p.categoria).filter(Boolean))];
+        return ["Todo", ...cats];
+    }, [productos]);
+
+    // Filtrado por búsqueda
     const filtered = useMemo(() => {
         const s = search.trim().toLowerCase();
         if (!s) return productos;
         return productos.filter((p) =>
-            `${p.nombre} ${p.codigo}`.toLowerCase().includes(s)
+            `${p.nombre} ${p.codigo} ${p.categoria ?? ""}`.toLowerCase().includes(s)
         );
     }, [productos, search]);
 
-    // ── Carrito helpers ──────────────────────────────────────
+    // Productos agrupados por categoría
+    const porCategoria = useMemo(() => {
+        const grupos = {};
+        filtered.forEach((p) => {
+            const cat = p.categoria || "Sin marca";
+            if (!grupos[cat]) grupos[cat] = [];
+            grupos[cat].push(p);
+        });
+        return grupos;
+    }, [filtered]);
+
+    // ── Carrito helpers ──────────────────────────────
     const agregarAlCarrito = (p) => {
-        setCarrito((prev) => ({
-            ...prev,
-            [p.codigo]: (prev[p.codigo] ?? 0) + 1,
-        }));
+        setCarrito((prev) => ({ ...prev, [p.codigo]: (prev[p.codigo] ?? 0) + 1 }));
     };
 
     const cambiarCantidad = (codigo, delta) => {
@@ -69,252 +79,404 @@ export default function Catalogo() {
     };
 
     const itemsEnCarrito = Object.values(carrito).reduce((a, b) => a + b, 0);
-
     const productosEnCarrito = productos.filter((p) => carrito[p.codigo] > 0);
-
     const total = productosEnCarrito.reduce(
-        (sum, p) => sum + Number(p.precio_venta) * carrito[p.codigo],
-        0
+        (sum, p) => sum + Number(p.precio_venta) * carrito[p.codigo], 0
     );
 
     const enviarPorWhatsApp = () => {
         if (productosEnCarrito.length === 0) return;
-
         const whatsappNumber = perfil?.telefono;
-
         if (!whatsappNumber) {
-            alert("Configura tu número de WhatsApp en la sección Perfil.");
+            alert("Esta tienda no tiene número de WhatsApp configurado.");
             return;
         }
-
         const lineas = productosEnCarrito.map((p) => {
             const cant = carrito[p.codigo];
             const subtotal = (Number(p.precio_venta) * cant).toFixed(2);
-            return `• ${p.nombre} x${cant} = $ ${subtotal}`;
+            return `• ${p.nombre} x${cant} = RD$ ${subtotal}`;
         });
-
         const mensaje =
-            `🛒 *Pedido*\n\n` +
+            `🛒 *Pedido - ${perfil?.nombre_tienda ?? "Tienda"}*\n\n` +
             lineas.join("\n") +
-            `\n\n*Total: $ ${total.toFixed(2)}*`;
-
-        const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(mensaje)}`;
-        window.open(url, "_blank");
+            `\n\n*Total: RD$ ${total.toFixed(2)}*`;
+        window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(mensaje)}`, "_blank");
     };
 
-    // ── Render ───────────────────────────────────────────────
+    // ── Card de producto ─────────────────────────────
+    const ProductCard = ({ p }) => {
+        const cantEnCarrito = carrito[p.codigo] ?? 0;
+        const agotado = p.control_inventario && (p.cantidad ?? 0) <= 0;
+        const [hovered, setHovered] = useState(false);
+
+        return (
+            <div
+                onMouseEnter={() => setHovered(true)}   // 👈 nuevo
+                onMouseLeave={() => setHovered(false)}  // 👈 nuevo
+                className={`flex-shrink-0 w-44 rounded-2xl overflow-hidden shadow-sm border flex flex-col transition-all duration-200 ${hovered
+                    ? "border-amber-400 bg-amber-50 shadow-amber-200 shadow-md"  // 👈 dorado al hover
+                    : "border-gray-100 bg-white"
+                    }`}>
+                {/* Imagen */}
+                <div className="relative w-full h-44 bg-gray-50">
+                    {p.imagen_url ? (
+                        <img
+                            src={p.imagen_url}
+                            alt={p.nombre}
+                            className="w-full h-full object-cover"
+                            onError={(e) => { e.target.style.display = "none"; }}
+                        />
+                    ) : (
+                        <div className="w-full h-full flex items-center justify-center text-4xl">
+                            🌸
+                        </div>
+                    )}
+                    {/* Badges */}
+                    {agotado && (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <span className="bg-white text-xs font-bold px-3 py-1 rounded-full text-gray-800">
+                                Agotado
+                            </span>
+                        </div>
+                    )}
+                    {!agotado && (p.ventas ?? 0) > 0 && (
+                        <span className="absolute top-2 left-2 bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            ⭐ Top
+                        </span>
+                    )}
+                </div>
+
+                {/* Info */}
+                <div className="p-3 flex flex-col gap-1 flex-1">
+                    <p className="text-xs text-gray-400 uppercase tracking-wide">{p.categoria ?? ""}</p>
+                    <p className="font-semibold text-sm leading-tight text-gray-900 line-clamp-2">{p.nombre}</p>
+                    {p.unidad_medida && (
+                        <p className="text-xs text-gray-400">{p.unidad_medida}</p>
+                    )}
+                    <p className="text-base font-bold text-gray-900 mt-auto">
+                        RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                    </p>
+
+                    {/* Botón */}
+                    {agotado ? (
+                        <button disabled className="mt-2 w-full border rounded-xl py-2 text-xs text-gray-400 bg-gray-50">
+                            Agotado
+                        </button>
+                    ) : cantEnCarrito === 0 ? (
+                        <button
+                            onClick={() => agregarAlCarrito(p)}
+                            className={`mt-2 w-full rounded-xl py-2 text-xs font-semibold transition-all duration-200 ${hovered ? "bg-amber-500 text-white" : "bg-gray-900 text-white"
+                                }`}
+                        >
+                            + Agregar
+                        </button>
+                    ) : (
+                        <div className="mt-2 flex items-center justify-between border rounded-xl overflow-hidden">
+                            <button onClick={() => cambiarCantidad(p.codigo, -1)} className="px-3 py-1.5 text-base font-bold text-gray-600">−</button>
+                            <span className="font-semibold text-sm">{cantEnCarrito}</span>
+                            <button onClick={() => cambiarCantidad(p.codigo, +1)} className="px-3 py-1.5 text-base font-bold text-gray-600">+</button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        );
+    };
+
+    // ── Vista "Ver más" de una categoría ────────────
+    if (verMasCat) {
+        const prods = porCategoria[verMasCat] ?? [];
+        return (
+            <div className="min-h-screen bg-gray-50 pb-32">
+                {/* Header */}
+                <div className="sticky top-0 z-40 bg-white border-b px-4 py-3 flex items-center gap-3">
+                    <button onClick={() => setVerMasCat(null)} className="text-xl">←</button>
+                    <h2 className="font-bold text-lg">{verMasCat}</h2>
+                    <span className="text-sm text-gray-400 ml-auto">{prods.length} productos</span>
+                </div>
+                <div className="p-4 grid grid-cols-2 gap-3">
+                    {prods.map((p) => (
+                        <div key={p.codigo} className="bg-white rounded-2xl overflow-hidden shadow-sm border border-gray-100 flex flex-col">
+                            <div className="relative w-full h-44 bg-gray-50">
+                                {p.imagen_url ? (
+                                    <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-cover"
+                                        onError={(e) => { e.target.style.display = "none"; }} />
+                                ) : (
+                                    <div className="w-full h-full flex items-center justify-center text-4xl">🌸</div>
+                                )}
+                                {p.control_inventario && (p.cantidad ?? 0) <= 0 && (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                        <span className="bg-white text-xs font-bold px-3 py-1 rounded-full">Agotado</span>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="p-3 flex flex-col gap-1 flex-1">
+                                <p className="font-semibold text-sm leading-tight">{p.nombre}</p>
+                                {p.unidad_medida && <p className="text-xs text-gray-400">{p.unidad_medida}</p>}
+                                <p className="text-base font-bold mt-auto">
+                                    RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                                </p>
+                                {!(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
+                                    carrito[p.codigo] > 0 ? (
+                                        <div className="mt-2 flex items-center justify-between border rounded-xl overflow-hidden">
+                                            <button onClick={() => cambiarCantidad(p.codigo, -1)} className="px-3 py-1.5 text-base font-bold text-gray-600">−</button>
+                                            <span className="font-semibold text-sm">{carrito[p.codigo]}</span>
+                                            <button onClick={() => cambiarCantidad(p.codigo, +1)} className="px-3 py-1.5 text-base font-bold text-gray-600">+</button>
+                                        </div>
+                                    ) : (
+                                        <button onClick={() => agregarAlCarrito(p)}
+                                            className="mt-2 w-full bg-gray-900 text-white rounded-xl py-2 text-xs font-semibold">
+                                            + Agregar
+                                        </button>
+                                    )
+                                )}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
+                {/* Botones flotantes */}
+                <div className="fixed bottom-6 right-4 flex flex-col gap-3 z-50">
+                    <button onClick={enviarPorWhatsApp}
+                        className="w-12 h-12 bg-green-500 text-white rounded-full shadow-lg flex items-center justify-center">
+                        <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                        </svg>
+                    </button>
+                    <button onClick={() => setShowCarrito(true)}
+                        className="relative w-12 h-12 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center">
+                        🛒
+                        {itemsEnCarrito > 0 && (
+                            <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
+                                {itemsEnCarrito}
+                            </span>
+                        )}
+                    </button>
+                </div>
+                {showCarrito && (
+                    <div className="fixed inset-0 bg-black/40 flex items-end z-50">
+                        <div className="bg-white w-full rounded-t-3xl p-5 max-h-[80vh] overflow-y-auto">
+                            <div className="flex items-center justify-between mb-4">
+                                <h2 className="text-lg font-bold">🛒 Tu pedido</h2>
+                                <button onClick={() => setShowCarrito(false)} className="text-sm underline">Cerrar</button>
+                            </div>
+
+                            {productosEnCarrito.length === 0 ? (
+                                <p className="text-gray-400 text-sm text-center py-6">El carrito está vacío.</p>
+                            ) : (
+                                <>
+                                    <div className="space-y-3 mb-4">
+                                        {productosEnCarrito.map((p) => (
+                                            <div key={p.codigo} className="flex items-center gap-3 border rounded-xl p-3">
+                                                {p.imagen_url && (
+                                                    <img src={p.imagen_url} alt={p.nombre}
+                                                        className="w-14 h-14 object-cover rounded-lg flex-shrink-0"
+                                                        onError={(e) => { e.target.style.display = "none"; }} />
+                                                )}
+                                                <div className="flex-1 min-w-0">
+                                                    <p className="font-semibold text-sm truncate">{p.nombre}</p>
+                                                    <p className="text-xs text-gray-400">{p.categoria}</p>
+                                                    <p className="text-xs text-gray-500">RD$ {Number(p.precio_venta).toFixed(2)} c/u</p>
+                                                </div>
+                                                <div className="flex items-center gap-2">
+                                                    <button onClick={() => cambiarCantidad(p.codigo, -1)}
+                                                        className="w-7 h-7 border rounded-full font-bold flex items-center justify-center">−</button>
+                                                    <span className="text-sm font-semibold w-4 text-center">{carrito[p.codigo]}</span>
+                                                    <button onClick={() => cambiarCantidad(p.codigo, +1)}
+                                                        className="w-7 h-7 border rounded-full font-bold flex items-center justify-center">+</button>
+                                                </div>
+                                                <p className="text-sm font-bold w-20 text-right">
+                                                    RD$ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
+                                                </p>
+                                            </div>
+                                        ))}
+                                    </div>
+
+                                    <div className="flex justify-between items-center border-t pt-3 mb-4">
+                                        <span className="font-semibold">Total</span>
+                                        <span className="text-xl font-bold">RD$ {total.toFixed(2)}</span>
+                                    </div>
+
+                                    <button onClick={enviarPorWhatsApp}
+                                        className="w-full bg-green-500 text-white rounded-xl p-4 font-bold text-base flex items-center justify-center gap-2">
+                                        <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                                            <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                                        </svg>
+                                        Enviar pedido por WhatsApp
+                                    </button>
+                                </>
+                            )}
+                        </div>
+                    </div>
+                )}
+
+            </div>
+        );
+    }
+
+    // ── Vista principal ──────────────────────────────
     return (
-        <div className="min-h-screen p-4 pb-32">
+        <div className="min-h-screen bg-gray-50 pb-32">
 
             {/* Header */}
-            <div className="flex items-center justify-between mb-4">
-
-                <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0">
-                        {perfil?.logo_url ? (
-                            <img
-                                src={perfil.logo_url}
-                                alt="Logo"
-                                className="w-full h-full object-contain"
-                            />
-                        ) : (
-                            <span className="text-2xl">🏪</span>
-                        )}
-                    </div>
-                    <div>
-                        <h1 className="text-2xl font-bold">
-                            {perfil?.nombre_tienda ?? "Mi Tienda"}
-                        </h1>
-                        <p className="text-sm text-gray-500">Catálogo de productos</p>
+            <div className="bg-white px-4 pt-5 pb-4 ">
+                <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-3">
+                        <div className="w-12 h-12 rounded-2xl overflow-hidden bg-gray-100 flex items-center justify-center flex-shrink-0 border">
+                            {perfil?.logo_url ? (
+                                <img src={perfil.logo_url} alt="Logo" className="w-full h-full object-contain" />
+                            ) : (
+                                <span className="text-2xl">🌸</span>
+                            )}
+                        </div>
+                        <div>
+                            <h1 className="text-lg font-bold text-gray-900 leading-tight">
+                                {perfil?.nombre_tienda ?? "Mi Tienda"}
+                            </h1>
+                            <p className="text-xs text-gray-400">Catálogo de perfumes</p>
+                        </div>
                     </div>
                 </div>
 
-                {/* Botón carrito */}
+                {/* Buscador */}
+                <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
+                    <input
+                        className="w-full bg-gray-100 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none"
+                        placeholder="Buscar perfume o marca..."
+                        value={search}
+                        onChange={(e) => setSearch(e.target.value)}
+                    />
+                </div>
+
+
+            </div>
+            {/* Chips de categoría */}
+            <div className="sticky top-0 z-40 bg-white border-b  px-4 py-2">
+                <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+                    {categorias.map((cat) => (
+                        <button
+                            key={cat}
+                            onClick={() => setCategoriaActiva(cat)}
+                            className={`flex-shrink-0 px-4 py-1.5 rounded-full text-sm font-medium transition ${categoriaActiva === cat
+                                ? "bg-gray-900 text-white"
+                                : "bg-gray-100 text-gray-600"
+                                }`}
+                        >
+                            {cat}
+                        </button>
+                    ))}
+                </div>
+            </div>
+
+            {/* Contenido */}
+            {loading ? (
+                <div className="p-8 text-center text-gray-400 text-sm">Cargando catálogo...</div>
+            ) : filtered.length === 0 ? (
+                <div className="p-8 text-center text-gray-400 text-sm">No se encontraron productos.</div>
+            ) : categoriaActiva !== "Todo" ? (
+                // Vista de una sola categoría filtrada
+                <div className="p-4 grid grid-cols-2 gap-3">
+                    {filtered
+                        .filter((p) => (p.categoria || "Sin marca") === categoriaActiva)
+                        .map((p) => <ProductCard key={p.codigo} p={p} />)}
+                </div>
+            ) : (
+                // Vista principal — scroll horizontal por categoría
+                <div className="py-4 space-y-6">
+                    {Object.entries(porCategoria).map(([cat, prods]) => (
+                        <div key={cat}>
+                            {/* Título de categoría */}
+                            <div className="flex items-center justify-between px-4 mb-3">
+                                <h2 className="font-bold text-gray-900 text-base">{cat}</h2>
+                                {prods.length > 3 && (
+                                    <button
+                                        onClick={() => setVerMasCat(cat)}
+                                        className="text-sm text-amber-600 font-semibold"
+                                    >
+                                        Ver más →
+                                    </button>
+                                )}
+                            </div>
+
+                            {/* Scroll horizontal */}
+                            <div className="flex gap-3 overflow-x-auto px-4 pb-2 scrollbar-hide">
+                                {prods.map((p) => <ProductCard key={p.codigo} p={p} />)}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            )}
+
+            {/* Botones flotantes */}
+            <div className="fixed bottom-6 right-4 flex flex-col gap-3 z-50">
+                <button
+                    onClick={enviarPorWhatsApp}
+                    className="w-12 h-12 bg-green-500 text-white rounded-full shadow-lg flex items-center justify-center"
+                >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
+                    </svg>
+                </button>
                 <button
                     onClick={() => setShowCarrito(true)}
-                    className="relative bg-black text-white px-4 py-2 rounded-xl text-sm font-semibold"
+                    className="relative w-12 h-12 bg-gray-900 text-white rounded-full shadow-lg flex items-center justify-center text-xl"
                 >
-                    🛒 Carrito
+                    🛒
                     {itemsEnCarrito > 0 && (
-                        <span className="absolute -top-2 -right-2 bg-green-500 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                        <span className="absolute -top-1 -right-1 bg-amber-400 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center font-bold">
                             {itemsEnCarrito}
                         </span>
                     )}
                 </button>
             </div>
 
-            {/* Buscador */}
-            <input
-                className="w-full border rounded-xl p-3 mb-2"
-                placeholder="Buscar por nombre o código..."
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-            />
-            <p className="text-xs text-gray-400 mb-3">
-                {filtered.length} producto{filtered.length !== 1 ? "s" : ""}
-            </p>
-
-            {/* Productos */}
-            {loading ? (
-                <p className="text-gray-400 text-sm">Cargando productos...</p>
-            ) : (
-                <div className="grid grid-cols-2 gap-3">
-                    {filtered.length === 0 && (
-                        <p className="col-span-2 text-gray-400 text-sm text-center py-10">
-                            No se encontraron productos.
-                        </p>
-                    )}
-
-                    {filtered.map((p) => {
-                        const cantEnCarrito = carrito[p.codigo] ?? 0;
-                        const agotado = p.control_inventario && (p.cantidad ?? 0) <= 0;
-
-                        return (
-                            <div key={p.codigo} className="border rounded-2xl bg-white shadow-sm overflow-hidden flex flex-col">
-
-                                {/* Imagen */}
-                                {p.imagen_url ? (
-                                    <img
-                                        src={p.imagen_url}
-                                        alt={p.nombre}
-                                        className="w-full h-36 object-cover"
-                                        onError={(e) => { e.target.style.display = "none"; }}
-                                    />
-                                ) : (
-                                    <div className="w-full h-36 bg-gray-100 flex items-center justify-center text-3xl">
-                                        📦
-                                    </div>
-                                )}
-
-                                <div className="p-3 flex flex-col gap-1 flex-1">
-                                    <p className="font-semibold text-sm leading-tight">{p.nombre}</p>
-                                    <p className="text-xs text-gray-400 font-mono">{p.codigo}</p>
-
-                                    {p.unidad_medida && (
-                                        <span className="text-xs border rounded-full px-2 py-0.5 self-start text-gray-500">
-                                            {p.unidad_medida}
-                                        </span>
-                                    )}
-
-                                    {p.control_inventario && (
-                                        <span className={`text-xs rounded-full px-2 py-0.5 self-start ${agotado ? "bg-red-50 text-red-600" : "bg-green-50 text-green-700"
-                                            }`}>
-                                            {agotado ? "Agotado" : `Disponible (${p.cantidad})`}
-                                        </span>
-                                    )}
-
-                                    <p className="text-lg font-bold mt-1">
-                                        RD$ {Number(p.precio_venta).toFixed(2)}
-                                    </p>
-
-                                    {/* Botón agregar / contador */}
-                                    {agotado ? (
-                                        <button disabled className="mt-2 w-full border rounded-xl p-2 text-sm text-gray-400 bg-gray-50">
-                                            Agotado
-                                        </button>
-                                    ) : cantEnCarrito === 0 ? (
-                                        <button
-                                            onClick={() => agregarAlCarrito(p)}
-                                            className="mt-2 w-full bg-black text-white rounded-xl p-2 text-sm font-semibold"
-                                        >
-                                            + Agregar
-                                        </button>
-                                    ) : (
-                                        <div className="mt-2 flex items-center justify-between border rounded-xl overflow-hidden">
-                                            <button
-                                                onClick={() => cambiarCantidad(p.codigo, -1)}
-                                                className="px-3 py-2 text-lg font-bold text-gray-600"
-                                            >
-                                                −
-                                            </button>
-                                            <span className="font-semibold text-sm">{cantEnCarrito}</span>
-                                            <button
-                                                onClick={() => cambiarCantidad(p.codigo, +1)}
-                                                className="px-3 py-2 text-lg font-bold text-gray-600"
-                                            >
-                                                +
-                                            </button>
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
-                        );
-                    })}
-                </div>
-            )}
-
-            {/* ── MODAL CARRITO ── */}
+            {/* Modal carrito */}
             {showCarrito && (
                 <div className="fixed inset-0 bg-black/40 flex items-end z-50">
                     <div className="bg-white w-full rounded-t-3xl p-5 max-h-[80vh] overflow-y-auto">
-
                         <div className="flex items-center justify-between mb-4">
                             <h2 className="text-lg font-bold">🛒 Tu pedido</h2>
-                            <button onClick={() => setShowCarrito(false)} className="text-sm underline">
-                                Cerrar
-                            </button>
+                            <button onClick={() => setShowCarrito(false)} className="text-sm underline">Cerrar</button>
                         </div>
 
                         {productosEnCarrito.length === 0 ? (
-                            <p className="text-gray-400 text-sm text-center py-6">
-                                El carrito está vacío.
-                            </p>
+                            <p className="text-gray-400 text-sm text-center py-6">El carrito está vacío.</p>
                         ) : (
                             <>
                                 <div className="space-y-3 mb-4">
                                     {productosEnCarrito.map((p) => (
                                         <div key={p.codigo} className="flex items-center gap-3 border rounded-xl p-3">
                                             {p.imagen_url && (
-                                                <img
-                                                    src={p.imagen_url}
-                                                    alt={p.nombre}
+                                                <img src={p.imagen_url} alt={p.nombre}
                                                     className="w-14 h-14 object-cover rounded-lg flex-shrink-0"
-                                                    onError={(e) => { e.target.style.display = "none"; }}
-                                                />
+                                                    onError={(e) => { e.target.style.display = "none"; }} />
                                             )}
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-semibold text-sm truncate">{p.nombre}</p>
-                                                <p className="text-xs text-gray-500">
-                                                    $ {Number(p.precio_venta).toFixed(2)} c/u
-                                                </p>
+                                                <p className="text-xs text-gray-400">{p.categoria}</p>
+                                                <p className="text-xs text-gray-500">RD$ {Number(p.precio_venta).toFixed(2)} c/u</p>
                                             </div>
-
                                             <div className="flex items-center gap-2">
-                                                <button
-                                                    onClick={() => cambiarCantidad(p.codigo, -1)}
-                                                    className="w-7 h-7 border rounded-full text-base font-bold flex items-center justify-center"
-                                                >
-                                                    −
-                                                </button>
-                                                <span className="text-sm font-semibold w-4 text-center">
-                                                    {carrito[p.codigo]}
-                                                </span>
-                                                <button
-                                                    onClick={() => cambiarCantidad(p.codigo, +1)}
-                                                    className="w-7 h-7 border rounded-full text-base font-bold flex items-center justify-center"
-                                                >
-                                                    +
-                                                </button>
+                                                <button onClick={() => cambiarCantidad(p.codigo, -1)}
+                                                    className="w-7 h-7 border rounded-full font-bold flex items-center justify-center">−</button>
+                                                <span className="text-sm font-semibold w-4 text-center">{carrito[p.codigo]}</span>
+                                                <button onClick={() => cambiarCantidad(p.codigo, +1)}
+                                                    className="w-7 h-7 border rounded-full font-bold flex items-center justify-center">+</button>
                                             </div>
-
                                             <p className="text-sm font-bold w-20 text-right">
-                                                $ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
+                                                RD$ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
                                             </p>
                                         </div>
                                     ))}
                                 </div>
 
-                                {/* Total */}
                                 <div className="flex justify-between items-center border-t pt-3 mb-4">
                                     <span className="font-semibold">Total</span>
-                                    <span className="text-xl font-bold">$ {total.toFixed(2)}</span>
+                                    <span className="text-xl font-bold">RD$ {total.toFixed(2)}</span>
                                 </div>
 
-                                {/* Botón WhatsApp */}
-                                <button
-                                    onClick={enviarPorWhatsApp}
-                                    className="w-full bg-green-500 text-white rounded-xl p-4 font-bold text-base flex items-center justify-center gap-2"
-                                >
+                                <button onClick={enviarPorWhatsApp}
+                                    className="w-full bg-green-500 text-white rounded-xl p-4 font-bold text-base flex items-center justify-center gap-2">
                                     <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
                                         <path d="M17.472 14.382c-.297-.149-1.758-.867-2.03-.967-.273-.099-.471-.148-.67.15-.197.297-.767.966-.94 1.164-.173.199-.347.223-.644.075-.297-.15-1.255-.463-2.39-1.475-.883-.788-1.48-1.761-1.653-2.059-.173-.297-.018-.458.13-.606.134-.133.298-.347.446-.52.149-.174.198-.298.298-.497.099-.198.05-.371-.025-.52-.075-.149-.669-1.612-.916-2.207-.242-.579-.487-.5-.669-.51-.173-.008-.371-.01-.57-.01-.198 0-.52.074-.792.372-.272.297-1.04 1.016-1.04 2.479 0 1.462 1.065 2.875 1.213 3.074.149.198 2.096 3.2 5.077 4.487.709.306 1.262.489 1.694.625.712.227 1.36.195 1.871.118.571-.085 1.758-.719 2.006-1.413.248-.694.248-1.289.173-1.413-.074-.124-.272-.198-.57-.347m-5.421 7.403h-.004a9.87 9.87 0 01-5.031-1.378l-.361-.214-3.741.982.998-3.648-.235-.374a9.86 9.86 0 01-1.51-5.26c.001-5.45 4.436-9.884 9.888-9.884 2.64 0 5.122 1.03 6.988 2.898a9.825 9.825 0 012.893 6.994c-.003 5.45-4.437 9.884-9.885 9.884m8.413-18.297A11.815 11.815 0 0012.05 0C5.495 0 .16 5.335.157 11.892c0 2.096.547 4.142 1.588 5.945L.057 24l6.305-1.654a11.882 11.882 0 005.683 1.448h.005c6.554 0 11.89-5.335 11.893-11.893a11.821 11.821 0 00-3.48-8.413z" />
                                     </svg>

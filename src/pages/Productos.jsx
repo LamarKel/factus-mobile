@@ -11,6 +11,7 @@ const emptyForm = {
   control_inventario: false,
   cantidad: "",
   imagen_url: "", // solo si control_inventario = true
+  categoria: "",
 };
 
 export default function Productos() {
@@ -77,6 +78,7 @@ export default function Productos() {
       control_inventario: !!p.control_inventario,
       cantidad: p.cantidad === null || p.cantidad === undefined ? "" : String(p.cantidad),
       imagen_url: p.imagen_url ?? "",
+      categoria: p.categoria ?? "",
     });
     setShowForm(true);
   };
@@ -130,6 +132,7 @@ export default function Productos() {
       precio_compra: pc,
       control_inventario: !!form.control_inventario,
       imagen_url: form.imagen_url.trim() || null,
+      categoria: form.categoria.trim() || null,
 
     };
 
@@ -254,6 +257,12 @@ export default function Productos() {
                 value={form.nombre}
                 onChange={(e) => setForm({ ...form, nombre: e.target.value })}
                 required
+              />
+              <input
+                className="w-full border rounded-xl p-3"
+                placeholder="Marca (ej: Dior, Chanel, Versace...)"
+                value={form.categoria}
+                onChange={(e) => setForm({ ...form, categoria: e.target.value })}
               />
 
               <input
