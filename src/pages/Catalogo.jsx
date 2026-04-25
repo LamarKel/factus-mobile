@@ -90,13 +90,13 @@ export default function Catalogo() {
         const lineas = productosEnCarrito.map((p) => {
             const cant = carrito[p.codigo];
             const subtotal = (Number(p.precio_venta) * cant).toFixed(2);
-            return `• ${p.nombre} x${cant} = RD$ ${subtotal}`;
+            return `• ${p.nombre} x${cant} = $ ${subtotal}`;
         });
 
         const mensaje =
             `🛒 *Pedido*\n\n` +
             lineas.join("\n") +
-            `\n\n*Total: RD$ ${total.toFixed(2)}*`;
+            `\n\n*Total: $ ${total.toFixed(2)}*`;
 
         const url = `https://wa.me/${whatsappNumber}?text=${encodeURIComponent(mensaje)}`;
         window.open(url, "_blank");
@@ -275,7 +275,7 @@ export default function Catalogo() {
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-semibold text-sm truncate">{p.nombre}</p>
                                                 <p className="text-xs text-gray-500">
-                                                    RD$ {Number(p.precio_venta).toFixed(2)} c/u
+                                                    $ {Number(p.precio_venta).toFixed(2)} c/u
                                                 </p>
                                             </div>
 
@@ -298,7 +298,7 @@ export default function Catalogo() {
                                             </div>
 
                                             <p className="text-sm font-bold w-20 text-right">
-                                                RD$ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
+                                                $ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
                                             </p>
                                         </div>
                                     ))}
@@ -307,7 +307,7 @@ export default function Catalogo() {
                                 {/* Total */}
                                 <div className="flex justify-between items-center border-t pt-3 mb-4">
                                     <span className="font-semibold">Total</span>
-                                    <span className="text-xl font-bold">RD$ {total.toFixed(2)}</span>
+                                    <span className="text-xl font-bold">$ {total.toFixed(2)}</span>
                                 </div>
 
                                 {/* Botón WhatsApp */}
