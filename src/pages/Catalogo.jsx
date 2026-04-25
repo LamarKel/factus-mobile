@@ -94,12 +94,12 @@ export default function Catalogo() {
         const lineas = productosEnCarrito.map((p) => {
             const cant = carrito[p.codigo];
             const subtotal = (Number(p.precio_venta) * cant).toFixed(2);
-            return `• ${p.nombre} x${cant} = RD$ ${subtotal}`;
+            return `• ${p.nombre} x${cant} = $ ${subtotal}`;
         });
         const mensaje =
             `🛒 *Pedido - ${perfil?.nombre_tienda ?? "Tienda"}*\n\n` +
             lineas.join("\n") +
-            `\n\n*Total: RD$ ${total.toFixed(2)}*`;
+            `\n\n*Total: $ ${total.toFixed(2)}*`;
         window.open(`https://wa.me/${whatsappNumber}?text=${encodeURIComponent(mensaje)}`, "_blank");
     };
 
@@ -154,7 +154,7 @@ export default function Catalogo() {
                         <p className="text-xs text-gray-400">{p.unidad_medida}</p>
                     )}
                     <p className="text-base font-bold text-gray-900 mt-auto">
-                        RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                        $ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
                     </p>
 
                     {/* Botón */}
@@ -213,7 +213,7 @@ export default function Catalogo() {
                                 <p className="font-semibold text-sm leading-tight">{p.nombre}</p>
                                 {p.unidad_medida && <p className="text-xs text-gray-400">{p.unidad_medida}</p>}
                                 <p className="text-base font-bold mt-auto">
-                                    RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                                    $ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
                                 </p>
                                 {!(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
                                     carrito[p.codigo] > 0 ? (
@@ -275,7 +275,7 @@ export default function Catalogo() {
                                                 <div className="flex-1 min-w-0">
                                                     <p className="font-semibold text-sm truncate">{p.nombre}</p>
                                                     <p className="text-xs text-gray-400">{p.categoria}</p>
-                                                    <p className="text-xs text-gray-500">RD$ {Number(p.precio_venta).toFixed(2)} c/u</p>
+                                                    <p className="text-xs text-gray-500">$ {Number(p.precio_venta).toFixed(2)} c/u</p>
                                                 </div>
                                                 <div className="flex items-center gap-2">
                                                     <button onClick={() => cambiarCantidad(p.codigo, -1)}
@@ -285,7 +285,7 @@ export default function Catalogo() {
                                                         className="w-7 h-7 border rounded-full font-bold flex items-center justify-center">+</button>
                                                 </div>
                                                 <p className="text-sm font-bold w-20 text-right">
-                                                    RD$ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
+                                                    $ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
                                                 </p>
                                             </div>
                                         ))}
@@ -293,7 +293,7 @@ export default function Catalogo() {
 
                                     <div className="flex justify-between items-center border-t pt-3 mb-4">
                                         <span className="font-semibold">Total</span>
-                                        <span className="text-xl font-bold">RD$ {total.toFixed(2)}</span>
+                                        <span className="text-xl font-bold">$ {total.toFixed(2)}</span>
                                     </div>
 
                                     <button onClick={enviarPorWhatsApp}
@@ -454,7 +454,7 @@ export default function Catalogo() {
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-semibold text-sm truncate">{p.nombre}</p>
                                                 <p className="text-xs text-gray-400">{p.categoria}</p>
-                                                <p className="text-xs text-gray-500">RD$ {Number(p.precio_venta).toFixed(2)} c/u</p>
+                                                <p className="text-xs text-gray-500">$ {Number(p.precio_venta).toFixed(2)} c/u</p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <button onClick={() => cambiarCantidad(p.codigo, -1)}
@@ -464,7 +464,7 @@ export default function Catalogo() {
                                                     className="w-7 h-7 border rounded-full font-bold flex items-center justify-center">+</button>
                                             </div>
                                             <p className="text-sm font-bold w-20 text-right">
-                                                RD$ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
+                                                $ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
                                             </p>
                                         </div>
                                     ))}
@@ -472,7 +472,7 @@ export default function Catalogo() {
 
                                 <div className="flex justify-between items-center border-t pt-3 mb-4">
                                     <span className="font-semibold">Total</span>
-                                    <span className="text-xl font-bold">RD$ {total.toFixed(2)}</span>
+                                    <span className="text-xl font-bold">$ {total.toFixed(2)}</span>
                                 </div>
 
                                 <button onClick={enviarPorWhatsApp}
