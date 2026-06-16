@@ -14,19 +14,23 @@ export default function Facturar() {
 
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
-
   const loadData = async () => {
     setLoading(true);
+
+    // 👇 así se obtiene el usuario en Supabase v2
+    const { data: userData } = await supabase.auth.getUser();
+    const userId = userData.user.id;
 
     const c = await supabase
       .from("customers")
       .select("id,nombre,apellido,telefono")
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     const p = await supabase
       .from("products")
       .select("id,nombre,codigo,precio_venta,precio_compra,control_inventario,cantidad")
-      .eq("user_id", supabase.auth.user().id)
+      .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
     setClientes(c.data ?? []);
