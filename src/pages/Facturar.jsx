@@ -223,7 +223,7 @@ export default function Facturar() {
     setSearchProd("");
     loadData();
   };
-
+  console.log("showTicket:", showTicket);
   if (loading) return <div className="p-4">Cargando...</div>;
 
   return (
