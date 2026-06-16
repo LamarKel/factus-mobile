@@ -186,6 +186,9 @@ export default function Facturar() {
       p_items: items,
     });
 
+    console.log("DATA:", data);
+    console.log("ERROR:", error);
+
     setSaving(false);
 
     if (error) { setMsg(error.message); return; }
