@@ -26,6 +26,7 @@ export default function Facturar() {
     const p = await supabase
       .from("products")
       .select("id,nombre,codigo,precio_venta,precio_compra,control_inventario,cantidad")
+      .eq("user_id", supabase.auth.user().id)
       .order("created_at", { ascending: false });
 
     setClientes(c.data ?? []);
