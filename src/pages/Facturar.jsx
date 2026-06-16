@@ -191,7 +191,9 @@ export default function Facturar() {
 
     setSaving(false);
 
-    if (error) { setMsg(error.message); return; }
+    if (error) { 
+        console.log("ERROR:", error.message);
+      setMsg(error.message); return; }
 
     // Busca nombre del cliente seleccionado
     const clienteNombre = customerId
