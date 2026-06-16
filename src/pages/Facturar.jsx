@@ -102,11 +102,10 @@ export default function Facturar() {
 
   const ticketRef = useRef();
 
-  // ✅ Nuevo
-  const handlePrint = useReactToPrint({
-    content: () => ticketRef.current,
-    documentTitle: "Ticket",
-    pageStyle: `
+const handlePrint = useReactToPrint({
+  contentRef: ticketRef,
+  documentTitle: "Ticket",
+  pageStyle: `
     @page {
       size: 80mm auto;
       margin: 0;
@@ -115,7 +114,7 @@ export default function Facturar() {
       body { margin: 0; }
     }
   `,
-  });
+});
 
   const loadData = async () => {
     setLoading(true);
