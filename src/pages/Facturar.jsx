@@ -174,6 +174,7 @@ export default function Facturar() {
   };
 
   const createInvoice = async () => {
+    console.log("createInvoice ejecutado");
     setMsg("");
     if (cart.length === 0) return setMsg("Agrega al menos un producto.");
     setSaving(true);
