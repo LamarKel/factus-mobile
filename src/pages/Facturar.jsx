@@ -174,7 +174,6 @@ export default function Facturar() {
   };
 
   const createInvoice = async () => {
-    console.log("createInvoice ejecutado");
     setMsg("");
     if (cart.length === 0) return setMsg("Agrega al menos un producto.");
     setSaving(true);
@@ -187,14 +186,11 @@ export default function Facturar() {
       p_items: items,
     });
 
-    console.log("DATA:", data);
-    console.log("ERROR:", error);
+    
 
     setSaving(false);
 
-    if (error) { 
-        console.log("ERROR:", error.message);
-      setMsg(error.message); return; }
+    if (error) { setMsg(error.message); return; }
 
     // Busca nombre del cliente seleccionado
     const clienteNombre = customerId
@@ -223,7 +219,7 @@ export default function Facturar() {
     setSearchProd("");
     loadData();
   };
-  console.log("showTicket:", showTicket);
+ 
   if (loading) return <div className="p-4">Cargando...</div>;
 
   return (
