@@ -12,6 +12,7 @@ import {
   Package,
   LogOut,
   UserCircle,
+  ShoppingBag,
 } from "lucide-react";
 
 const links = [
@@ -22,6 +23,7 @@ const links = [
   { to: "/clientes", label: "Clientes", Icon: Users },
   { to: "/productos", label: "Productos", Icon: Package },
   { to: "/perfil", label: "Perfil", Icon: UserCircle },
+  { to: "/compras", label: "Compras", Icon: ShoppingBag },
 
 ];
 

@@ -10,6 +10,7 @@ import Facturas from "./pages/Facturas";
 import Abonos from "./pages/Abonos";
 import Catalogo from "./pages/Catalogo";
 import Perfil from "./pages/Perfil";
+import Compras from "./pages/Compras";
 
 
 import AppShell from "./layout/AppShell";
@@ -119,7 +120,16 @@ export default function App() {
             </PrivateRoute>
           }
         />
-
+        <Route
+          path="/compras"
+          element={
+            <PrivateRoute>
+              <AppShell title="Compras">
+                <Compras />
+              </AppShell>
+            </PrivateRoute>
+          }
+        />
 
       </Routes>
     </BrowserRouter>
