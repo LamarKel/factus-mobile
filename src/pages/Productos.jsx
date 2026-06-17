@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
+import imageCompression from "browser-image-compression";
 
 const emptyForm = {
   nombre: "",
@@ -34,7 +35,7 @@ export default function Productos() {
     const { data, error } = await supabase
       .from("products")
       .select("*")
-      .eq("user_id", user.id) // 👈 esto faltaba
+      .eq("user_id", user.id)
       .order("created_at", { ascending: false });
 
     if (!error) setProductos(data ?? []);
@@ -121,6 +122,30 @@ export default function Productos() {
 
     const { data: userData } = await supabase.auth.getUser();
     const user = userData.user;
+
+
+    // ── Función reutilizable de compresión + subida ──────────
+    const subirImagenOptimizada = async (file, bucket, prefijo = "") => {
+      const opciones = {
+        maxSizeMB: 0.3,        // 👈 máximo 300KB por imagen
+        maxWidthOrHeight: 800, // 👈 redimensiona a máx 800px
+        useWebWorker: true,
+        fileType: "image/webp", // 👈 convierte a webp (más liviano que jpg/png)
+      };
+
+      const compressed = await imageCompression(file, opciones);
+
+      const fileName = `${prefijo}${Date.now()}.webp`;
+
+      const { error } = await supabase.storage
+        .from(bucket)
+        .upload(fileName, compressed, { upsert: true, contentType: "image/webp" });
+
+      if (error) throw error;
+
+      const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+      return data.publicUrl;
+    };
 
     const payload = {
       user_id: user.id,
@@ -315,23 +340,12 @@ export default function Productos() {
                       const file = e.target.files?.[0];
                       if (!file) return;
 
-                      const ext = file.name.split(".").pop();
-                      const fileName = `${Date.now()}.${ext}`;
-
-                      const { error } = await supabase.storage
-                        .from("imagen") // 👈 nombre de tu bucket
-                        .upload(fileName, file, { upsert: true });
-
-                      if (error) {
-                        alert("Error al subir imagen: " + error.message);
-                        return;
+                      try {
+                        const url = await subirImagenOptimizada(file, "imagen", "prod_");
+                        setForm({ ...form, imagen_url: url });
+                      } catch (err) {
+                        alert("Error al subir imagen: " + err.message);
                       }
-
-                      const { data } = supabase.storage
-                        .from("imagen")
-                        .getPublicUrl(fileName);
-
-                      setForm({ ...form, imagen_url: data.publicUrl });
                     }}
                   />
                 </label>
