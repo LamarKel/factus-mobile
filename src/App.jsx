@@ -11,7 +11,7 @@ import Abonos from "./pages/Abonos";
 import Catalogo from "./pages/Catalogo";
 import Perfil from "./pages/Perfil";
 import Compras from "./pages/Compras";
-
+import Descuentos from "./pages/Descuentos";
 
 import AppShell from "./layout/AppShell";
 import { supabase } from "./lib/supabase";
@@ -130,6 +130,13 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route path="/descuentos" element={
+          <PrivateRoute>
+            <AppShell title="Descuentos">
+              <Descuentos />
+            </AppShell>
+          </PrivateRoute>
+        } />
 
       </Routes>
     </BrowserRouter>

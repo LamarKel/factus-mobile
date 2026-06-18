@@ -100,12 +100,14 @@ export default function Facturar() {
   const [facturaImpresa, setFacturaImpresa] = useState(null);
   const [showTicket, setShowTicket] = useState(false);
 
+  const [descuentos, setDescuentos] = useState([]);
+  const [discountId, setDiscountId] = useState("");
   const ticketRef = useRef();
 
-const handlePrint = useReactToPrint({
-  contentRef: ticketRef,
-  documentTitle: "Ticket",
-  pageStyle: `
+  const handlePrint = useReactToPrint({
+    contentRef: ticketRef,
+    documentTitle: "Ticket",
+    pageStyle: `
     @page {
       size: 80mm auto;
       margin: 0;
@@ -114,14 +116,14 @@ const handlePrint = useReactToPrint({
       body { margin: 0; }
     }
   `,
-});
+  });
 
   const loadData = async () => {
     setLoading(true);
     const { data: userData } = await supabase.auth.getUser();
     const userId = userData.user.id;
 
-    const [c, p, perf] = await Promise.all([
+    const [c, p, perf, desc] = await Promise.all([
       supabase.from("customers")
         .select("id,nombre,apellido,telefono")
         .eq("user_id", userId)
@@ -136,13 +138,22 @@ const handlePrint = useReactToPrint({
         .select("nombre_tienda,telefono,logo_url")
         .eq("user_id", userId)
         .single(),
+
+      supabase.from("discounts")
+        .select("id,nombre,tipo,valor")
+        .eq("user_id", userId)
+        .eq("activo", true)
+        .order("nombre"),
+
     ]);
 
     setClientes(c.data ?? []);
     setProductos(p.data ?? []);
     if (perf.data) setPerfil(perf.data);
+    setDescuentos(desc.data ?? []);
     setLoading(false);
   };
+
 
   useEffect(() => { loadData(); }, []);
 
@@ -158,6 +169,17 @@ const handlePrint = useReactToPrint({
     cart.reduce((acc, it) => acc + it.qty * Number(it.precio_venta), 0),
     [cart]
   );
+  const descuentoSeleccionado = descuentos.find((d) => d.id === discountId);
+
+  const descuentoMonto = useMemo(() => {
+    if (!descuentoSeleccionado) return 0;
+    if (descuentoSeleccionado.tipo === "porcentaje") {
+      return Math.min(total * (descuentoSeleccionado.valor / 100), total);
+    }
+    return Math.min(descuentoSeleccionado.valor, total);
+  }, [descuentoSeleccionado, total]);
+
+  const totalConDescuento = total - descuentoMonto;
 
   const addToCart = (p) => {
     setMsg("");
@@ -183,9 +205,10 @@ const handlePrint = useReactToPrint({
       p_customer_id: customerId || null,
       p_tipo_pago: tipoPago,
       p_items: items,
+      p_discount_id: discountId || null,
     });
 
-    
+
 
     setSaving(false);
 
@@ -216,9 +239,10 @@ const handlePrint = useReactToPrint({
     setCustomerId("");
     setTipoPago("cash");
     setSearchProd("");
+    setDiscountId("");
     loadData();
   };
- 
+
   if (loading) return <div className="p-4">Cargando...</div>;
 
   return (
@@ -252,6 +276,24 @@ const handlePrint = useReactToPrint({
             ))}
           </div>
         </div>
+
+        {descuentos.length > 0 && (
+          <div className="border rounded-2xl p-4 bg-white">
+            <p className="text-sm text-gray-600 mb-2">Descuento (opcional)</p>
+            <select
+              className="w-full border rounded-xl p-3 bg-white"
+              value={discountId}
+              onChange={(e) => setDiscountId(e.target.value)}
+            >
+              <option value="">Sin descuento</option>
+              {descuentos.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.nombre} ({d.tipo === "porcentaje" ? `${d.valor}%` : `RD$ ${d.valor}`})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {/* Productos */}
         <div className="border rounded-2xl p-4 bg-white">
@@ -310,9 +352,21 @@ const handlePrint = useReactToPrint({
             </div>
           )}
 
-          <div className="mt-4 flex justify-between items-center">
-            <p className="text-sm text-gray-600">Total</p>
-            <p className="text-xl font-bold">RD$ {total.toFixed(2)}</p>
+          <div className="mt-4 space-y-1">
+            <div className="flex justify-between items-center">
+              <p className="text-sm text-gray-600">Subtotal</p>
+              <p className="text-sm">RD$ {total.toFixed(2)}</p>
+            </div>
+            {descuentoMonto > 0 && (
+              <div className="flex justify-between items-center text-green-600">
+                <p className="text-sm">Descuento</p>
+                <p className="text-sm">- RD$ {descuentoMonto.toFixed(2)}</p>
+              </div>
+            )}
+            <div className="flex justify-between items-center pt-1 border-t">
+              <p className="text-sm text-gray-600 font-semibold">Total</p>
+              <p className="text-xl font-bold">RD$ {totalConDescuento.toFixed(2)}</p>
+            </div>
           </div>
 
           {msg && <p className="mt-3 text-sm text-red-600">{msg}</p>}
