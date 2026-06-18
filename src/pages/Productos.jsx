@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import imageCompression from "browser-image-compression";
-import ScannerModal from "../ScannerModal";
+import ScannerModal from "../components/ScannerModal";
 
 const emptyForm = {
   nombre: "",

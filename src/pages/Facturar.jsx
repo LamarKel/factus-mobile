@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "../lib/supabase";
-import ScannerModal from "../ScannerModal";
+import ScannerModal from "../components/ScannerModal";
 
 // ── Componente del ticket ────────────────────────────────
 const Ticket = ({ factura, perfil }) => {
