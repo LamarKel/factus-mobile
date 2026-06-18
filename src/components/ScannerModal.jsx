@@ -8,20 +8,35 @@ export default function ScannerModal({ onScan, onClose }) {
   useEffect(() => {
     const html5QrCode = new Html5Qrcode(containerId);
     scannerRef.current = html5QrCode;
+    let isScanning = true; // Controla si el escáner sigue activo
 
     html5QrCode
       .start(
-        { facingMode: "environment" }, // cámara trasera
+        { facingMode: "environment" },
         {
           fps: 10,
           qrbox: { width: 250, height: 150 },
         },
-        (decodedText) => {
-          onScan(decodedText);
-          html5QrCode.stop().catch(() => {});
+        async (decodedText) => {
+          // Si ya detectó uno y está procesando el apagado, ignorar lecturas extras
+          if (!isScanning) return; 
+          isScanning = false;
+
+          try {
+            // 1. Apagamos la cámara primero de forma asíncrona
+            if (html5QrCode.isScanning) {
+              await html5QrCode.stop();
+            }
+            // 2. Una vez apagada con éxito, enviamos el dato al padre
+            onScan(decodedText);
+          } catch (err) {
+            console.error("Error al detener el escáner en éxito:", err);
+            // Enviar el dato igualmente si falla el stop
+            onScan(decodedText); 
+          }
         },
         () => {
-          // error de lectura por frame, se ignora (pasa constantemente mientras enfoca)
+          // Ignorar errores continuos de enfoque
         }
       )
       .catch((err) => {
@@ -29,9 +44,13 @@ export default function ScannerModal({ onScan, onClose }) {
         onClose();
       });
 
+    // Limpieza al desmontar el componente (ej. si el usuario da click en Cerrar)
     return () => {
-      if (scannerRef.current) {
-        scannerRef.current.stop().catch(() => {});
+      isScanning = false;
+      if (scannerRef.current && scannerRef.current.isScanning) {
+        scannerRef.current.stop().catch((err) => {
+          console.error("Error al detener en desmontaje:", err);
+        });
       }
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
