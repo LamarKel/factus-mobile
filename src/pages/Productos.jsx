@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import imageCompression from "browser-image-compression";
+import ScannerModal from "../ScannerModal";
 
 const emptyForm = {
   nombre: "",
@@ -25,6 +26,7 @@ export default function Productos() {
 
   const [form, setForm] = useState(emptyForm);
   const [msg, setMsg] = useState("");
+  const [showScanner, setShowScanner] = useState(false);
 
   const fetchProductos = async () => {
     setLoading(true);
@@ -276,6 +278,22 @@ export default function Productos() {
             {msg && <div className="mb-3 text-sm text-red-600">{msg}</div>}
 
             <form onSubmit={handleSubmit} className="space-y-3">
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 border rounded-xl p-3"
+                  placeholder="Código"
+                  value={form.codigo}
+                  onChange={(e) => setForm({ ...form, codigo: e.target.value })}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowScanner(true)}
+                  className="px-4 border rounded-xl bg-gray-50"
+                >
+                  📷
+                </button>
+              </div>
               <input
                 className="w-full border rounded-xl p-3"
                 placeholder="Nombre"
@@ -290,13 +308,6 @@ export default function Productos() {
                 onChange={(e) => setForm({ ...form, categoria: e.target.value })}
               />
 
-              <input
-                className="w-full border rounded-xl p-3"
-                placeholder="Código"
-                value={form.codigo}
-                onChange={(e) => setForm({ ...form, codigo: e.target.value })}
-                required
-              />
 
               <input
                 className="w-full border rounded-xl p-3"
@@ -433,6 +444,18 @@ export default function Productos() {
           </div>
         </div>
       )}
+
+      {showScanner && (
+        <ScannerModal
+          onScan={(codigo) => {
+            setForm({ ...form, codigo });
+            setShowScanner(false);
+          }}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
     </div>
+
+
   );
 }

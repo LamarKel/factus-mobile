@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "../lib/supabase";
+import ScannerModal from "../ScannerModal";
 
 // ── Componente del ticket ────────────────────────────────
 const Ticket = ({ factura, perfil }) => {
@@ -104,6 +105,8 @@ export default function Facturar() {
   const [discountId, setDiscountId] = useState("");
   const ticketRef = useRef();
 
+  const [showScanner, setShowScanner] = useState(false);
+
   const handlePrint = useReactToPrint({
     contentRef: ticketRef,
     documentTitle: "Ticket",
@@ -117,6 +120,16 @@ export default function Facturar() {
     }
   `,
   });
+
+  const handleScan = (codigo) => {
+    setShowScanner(false);
+    const producto = productos.find((p) => p.codigo === codigo);
+    if (!producto) {
+      alert(`No se encontró ningún producto con el código: ${codigo}`);
+      return;
+    }
+    addToCart(producto);
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -298,8 +311,21 @@ export default function Facturar() {
         {/* Productos */}
         <div className="border rounded-2xl p-4 bg-white">
           <p className="text-sm text-gray-600 mb-2">Agregar productos</p>
-          <input className="w-full border rounded-xl p-3" placeholder="Buscar producto..."
-            value={searchProd} onChange={(e) => setSearchProd(e.target.value)} />
+          <div className="flex gap-2">
+            <input
+              className="flex-1 border rounded-xl p-3"
+              placeholder="Buscar producto..."
+              value={searchProd}
+              onChange={(e) => setSearchProd(e.target.value)}
+            />
+            <button
+              type="button"
+              onClick={() => setShowScanner(true)}
+              className="px-4 border rounded-xl bg-gray-50"
+            >
+              📷
+            </button>
+          </div>
           <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
             {filteredProducts.slice(0, 30).map((p) => (
               <button key={p.id} onClick={() => addToCart(p)} className="w-full text-left border rounded-xl p-3">
@@ -414,6 +440,10 @@ export default function Facturar() {
             </div>
           </div>
         </div>
+      )}
+
+      {showScanner && (
+        <ScannerModal onScan={handleScan} onClose={() => setShowScanner(false)} />
       )}
     </div>
   );
