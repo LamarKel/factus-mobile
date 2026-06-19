@@ -26,7 +26,7 @@ const links = [
   { to: "/perfil", label: "Perfil", Icon: UserCircle },
   { to: "/compras", label: "Compras", Icon: ShoppingBag },
   { to: "/descuentos", label: "Descuentos", Icon: Percent },
-  { to: "/optimizarimagenes", label: "Optimizar Imágenes", Icon: Percent },
+  { to: "/optimizar", label: "Optimizar Imágenes", Icon: Percent },
 
 
 ];
