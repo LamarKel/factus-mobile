@@ -28,6 +28,29 @@ export default function Productos() {
   const [msg, setMsg] = useState("");
   const [showScanner, setShowScanner] = useState(false);
 
+  // ── Función reutilizable de compresión + subida ──────────
+  const subirImagenOptimizada = async (file, bucket, prefijo = "") => {
+    const opciones = {
+      maxSizeMB: 0.3,        // 👈 máximo 300KB por imagen
+      maxWidthOrHeight: 800, // 👈 redimensiona a máx 800px
+      useWebWorker: true,
+      fileType: "image/webp", // 👈 convierte a webp (más liviano que jpg/png)
+    };
+
+    const compressed = await imageCompression(file, opciones);
+
+    const fileName = `${prefijo}${Date.now()}.webp`;
+
+    const { error } = await supabase.storage
+      .from(bucket)
+      .upload(fileName, compressed, { upsert: true, contentType: "image/webp" });
+
+    if (error) throw error;
+
+    const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
+    return data.publicUrl;
+  };
+
   const fetchProductos = async () => {
     setLoading(true);
 
@@ -126,28 +149,7 @@ export default function Productos() {
     const user = userData.user;
 
 
-    // ── Función reutilizable de compresión + subida ──────────
-    const subirImagenOptimizada = async (file, bucket, prefijo = "") => {
-      const opciones = {
-        maxSizeMB: 0.3,        // 👈 máximo 300KB por imagen
-        maxWidthOrHeight: 800, // 👈 redimensiona a máx 800px
-        useWebWorker: true,
-        fileType: "image/webp", // 👈 convierte a webp (más liviano que jpg/png)
-      };
 
-      const compressed = await imageCompression(file, opciones);
-
-      const fileName = `${prefijo}${Date.now()}.webp`;
-
-      const { error } = await supabase.storage
-        .from(bucket)
-        .upload(fileName, compressed, { upsert: true, contentType: "image/webp" });
-
-      if (error) throw error;
-
-      const { data } = supabase.storage.from(bucket).getPublicUrl(fileName);
-      return data.publicUrl;
-    };
 
     const payload = {
       user_id: user.id,
