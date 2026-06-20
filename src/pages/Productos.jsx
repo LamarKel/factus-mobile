@@ -160,8 +160,10 @@ export default function Productos() {
       precio_venta: pv,
       precio_compra: pc,
       control_inventario: !!form.control_inventario,
+      cantidad: cantidadValue,
       imagen_url: form.imagen_url.trim() || null,
       categoria: form.categoria.trim() || null,
+
 
     };
 
