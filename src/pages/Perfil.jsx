@@ -92,6 +92,8 @@ export default function Perfil() {
     return (
         <div className="p-4 lg:p-6 max-w-xl mx-auto pb-24">
 
+
+
             {/* ── Header ── */}
             <div className="mb-6">
                 <h1 className="text-xl font-bold text-gray-900">Perfil de la tienda</h1>
@@ -99,10 +101,10 @@ export default function Perfil() {
             </div>
 
             {/* ── Logo ── */}
-            <div className="bg-white border border-gray-100 rounded-2xl p-6 mb-4">
+            <div className="bg-white border border-gray-100 rounded-2xl p-4 mb-4s">
                 <p className="text-xs text-gray-500 font-medium mb-4">Logo de la tienda</p>
 
-                <div className="flex items-center gap-5">
+                <div className="flex items-center gap-3">
                     {/* Preview */}
                     <div className="w-20 h-20 rounded-2xl border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
                         {form.logo_url ? (
@@ -115,8 +117,8 @@ export default function Perfil() {
                     </div>
 
                     {/* Acciones */}
-                    <div className="flex-1">
-                        <label className={`flex items-center gap-2 w-full border border-dashed border-gray-200 rounded-xl px-4 py-3 cursor-pointer text-sm text-gray-500 hover:bg-gray-50 transition ${uploading ? "opacity-50" : ""}`}>
+                    <div className="flex-1 min-w-0">
+                        <label className={`flex items-center gap-2 w-full min-w-0 border border-dashed border-gray-200 rounded-xl px-4 py-3 cursor-pointer text-sm text-gray-500 hover:bg-gray-50 transition ${uploading ? "opacity-50" : ""}`}>
                             <Upload size={14} />
                             {uploading ? "Subiendo..." : "Subir logo"}
                             <input type="file" accept="image/*" className="hidden" disabled={uploading}
@@ -129,7 +131,6 @@ export default function Perfil() {
                                 Quitar logo
                             </button>
                         )}
-                        <p className="text-[10px] text-gray-400 mt-1">Se comprime automáticamente a WebP</p>
                     </div>
                 </div>
             </div>
@@ -188,15 +189,15 @@ export default function Perfil() {
                         </div>
                     </div>
 
-                    <div className="flex gap-2">
+                    <div className="flex gap-2 min-w-0">
                         <input readOnly
-                            className="flex-1 border border-gray-100 rounded-xl p-2.5 text-xs bg-gray-50 text-gray-500"
+                            className="flex-1 min-w-0 border border-gray-100 rounded-xl p-2.5 text-xs bg-gray-50 text-gray-500 overflow-hidden truncate"
                             value={catalogoUrl}
                         />
                         <button onClick={copiarLink}
                             className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition ${copied
-                                    ? "bg-green-50 border-green-100 text-green-700"
-                                    : "border-gray-100 text-gray-600 hover:bg-gray-50"
+                                ? "bg-green-50 border-green-100 text-green-700"
+                                : "border-gray-100 text-gray-600 hover:bg-gray-50"
                                 }`}>
                             {copied ? <Check size={12} /> : <Copy size={12} />}
                             {copied ? "Copiado" : "Copiar"}
