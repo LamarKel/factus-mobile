@@ -1,63 +1,83 @@
 import { useEffect, useMemo, useState } from "react";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
+import { RefreshCw, Search, X, ChevronRight } from "lucide-react";
 
 function fmtMoney(n) {
-  const x = Number(n ?? 0);
-  return `RD$ ${x.toFixed(2)}`;
+  return `RD$ ${Number(n ?? 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
-function badgeStatus(status) {
-  if (status === "pagada") return "bg-green-100 text-green-700 border-green-200";
-  if (status === "parcial") return "bg-yellow-100 text-yellow-800 border-yellow-200";
-  return "bg-red-100 text-red-700 border-red-200";
+function StatusBadge({ status }) {
+  const styles = {
+    pagada: "bg-green-50 text-green-700 border-green-100",
+    parcial: "bg-amber-50 text-amber-700 border-amber-100",
+    pendiente: "bg-red-50 text-red-600 border-red-100",
+    cancelada: "bg-gray-100 text-gray-500 border-gray-200",
+  };
+  const labels = {
+    pagada: "Pagada",
+    parcial: "Parcial",
+    pendiente: "Pendiente",
+    cancelada: "Cancelada",
+  };
+  return (
+    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full border ${styles[status] ?? styles.pendiente}`}>
+      {labels[status] ?? status}
+    </span>
+  );
+}
+
+function TipoBadge({ tipo }) {
+  const styles = {
+    cash: "bg-gray-100 text-gray-600",
+    credito: "bg-blue-50 text-blue-600",
+    plazo: "bg-purple-50 text-purple-600",
+  };
+  return (
+    <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${styles[tipo] ?? "bg-gray-100 text-gray-600"}`}>
+      {tipo}
+    </span>
+  );
 }
 
 export default function Facturas() {
   const [loading, setLoading] = useState(true);
   const [facturas, setFacturas] = useState([]);
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState(null); // factura seleccionada
+  const [filtroStatus, setFiltroStatus] = useState("todas");
+  const [selected, setSelected] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
   const [items, setItems] = useState([]);
   const [payments, setPayments] = useState([]);
 
   const fetchFacturas = async () => {
     setLoading(true);
-
-    // Traemos facturas con cliente (si tiene)
     const { data, error } = await supabase
       .from("invoices")
-      .select(
-        `
+      .select(`
         id, created_at, tipo_pago, status,
         total, total_pagado, pendiente, total_ganancia, total_costo,
         customer:customers(id, nombre, apellido, telefono)
-      `
-      )
+      `)
       .order("created_at", { ascending: false });
 
     if (!error) setFacturas(data ?? []);
     setLoading(false);
   };
 
-  useEffect(() => {
-    fetchFacturas();
-  }, []);
+  useEffect(() => { fetchFacturas(); }, []);
 
   const filtered = useMemo(() => {
     const s = search.trim().toLowerCase();
-    if (!s) return facturas;
-
     return facturas.filter((f) => {
       const cliente = f.customer
         ? `${f.customer.nombre ?? ""} ${f.customer.apellido ?? ""} ${f.customer.telefono ?? ""}`
         : "consumidor final";
-      const t = `${cliente} ${f.tipo_pago} ${f.status} ${String(f.id).slice(0, 8)}`
-        .toLowerCase();
-      return t.includes(s);
+      const matchSearch = !s || `${cliente} ${f.tipo_pago} ${f.status} ${String(f.id).slice(0, 8)}`.toLowerCase().includes(s);
+      const matchStatus = filtroStatus === "todas" || f.status === filtroStatus;
+      return matchSearch && matchStatus;
     });
-  }, [facturas, search]);
+  }, [facturas, search, filtroStatus]);
 
   const openFactura = async (factura) => {
     setSelected(factura);
@@ -66,13 +86,11 @@ export default function Facturas() {
     setDetailLoading(true);
 
     const [it, pay] = await Promise.all([
-      supabase
-        .from("invoice_items")
+      supabase.from("invoice_items")
         .select("id, nombre_producto_snapshot, codigo_snapshot, cantidad, precio_venta_unit, subtotal")
         .eq("invoice_id", factura.id)
         .order("created_at", { ascending: true }),
-      supabase
-        .from("payments")
+      supabase.from("payments")
         .select("id, monto, created_at")
         .eq("invoice_id", factura.id)
         .order("created_at", { ascending: false }),
@@ -89,241 +107,284 @@ export default function Facturas() {
     setPayments([]);
   };
 
+  const tieneAbonos = (payments?.length ?? 0) > 0;
+  const bloqueaCancelar = selected?.tipo_pago !== "cash" && tieneAbonos;
+
+  // Contadores para los filtros
+  const counts = useMemo(() => ({
+    todas: facturas.length,
+    pagada: facturas.filter((f) => f.status === "pagada").length,
+    pendiente: facturas.filter((f) => f.status === "pendiente").length,
+    parcial: facturas.filter((f) => f.status === "parcial").length,
+  }), [facturas]);
+
   return (
-    <div className="min-h-screen p-4 pb-24">
-      <div className="flex items-center justify-between">
-        <h1 className="text-2xl font-bold">Facturas</h1>
-        <button onClick={fetchFacturas} className="text-sm underline">
-          Actualizar
+    <div className="p-4 lg:p-6 max-w-5xl mx-auto pb-24">
+
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-4">
+        <h1 className="text-xl font-bold text-gray-900">Facturas</h1>
+        <button
+          onClick={fetchFacturas}
+          className="w-9 h-9 grid place-items-center border border-gray-100 rounded-xl hover:bg-gray-50 transition"
+        >
+          <RefreshCw size={14} className={loading ? "animate-spin" : ""} />
         </button>
       </div>
 
-      <input
-        className="w-full mt-4 border rounded-xl p-3"
-        placeholder="Buscar por cliente / estado / ID..."
-        value={search}
-        onChange={(e) => setSearch(e.target.value)}
-      />
+      {/* ── Buscador ── */}
+      <div className="relative mb-3">
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+        <input
+          className="w-full pl-9 pr-3 py-2.5 border border-gray-100 rounded-xl text-sm bg-white focus:outline-none focus:border-gray-300"
+          placeholder="Buscar por cliente, estado o ID..."
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
 
+      {/* ── Filtros de estado ── */}
+      <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide mb-4 -mx-4 px-4">
+        {[
+          { k: "todas", t: "Todas" },
+          { k: "pagada", t: "Pagadas" },
+          { k: "pendiente", t: "Pendientes" },
+          { k: "parcial", t: "Parciales" },
+        ].map((x) => (
+          <button
+            key={x.k}
+            onClick={() => setFiltroStatus(x.k)}
+            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium transition ${filtroStatus === x.k ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"
+              }`}
+          >
+            {x.t}
+            <span className={`text-[10px] px-1.5 py-0.5 rounded-full ${filtroStatus === x.k ? "bg-white/20 text-white" : "bg-white text-gray-500"
+              }`}>
+              {counts[x.k]}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Lista de facturas ── */}
       {loading ? (
-        <p className="mt-4">Cargando...</p>
+        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Cargando...</div>
+      ) : filtered.length === 0 ? (
+        <p className="text-center text-gray-400 text-sm py-12">No hay facturas.</p>
       ) : (
-        <div className="mt-4 space-y-3">
-          {filtered.length === 0 && (
-            <p className="text-gray-500 text-sm">No hay facturas aún.</p>
-          )}
-
-          {filtered.map((f) => {
-            const clienteTxt = f.customer
-              ? `${f.customer.nombre ?? ""} ${f.customer.apellido ?? ""}`.trim()
-              : "Consumidor final";
-
-            return (
-              <button
-                key={f.id}
-                onClick={() => openFactura(f)}
-                className="w-full text-left border rounded-2xl p-4 bg-white shadow-sm"
-              >
-                <div className="flex justify-between items-start gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate">{clienteTxt}</p>
-                    <p className="text-xs text-gray-600">
-                      {new Date(f.created_at).toLocaleString()}
-                    </p>
-                    <p className="text-xs text-gray-600">
-                      Tipo: <span className="font-semibold">{f.tipo_pago}</span>
-                      {" · "}ID: {String(f.id).slice(0, 8)}...
-                    </p>
-                  </div>
-
-                  <div className="text-right">
-                    <span
-                      className={
-                        "inline-block text-xs px-2 py-1 rounded-full border " +
-                        badgeStatus(f.status)
-                      }
+        <>
+          {/* Desktop — tabla */}
+          <div className="hidden lg:block bg-white border border-gray-100 rounded-2xl overflow-hidden">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">ID</th>
+                  <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Cliente</th>
+                  <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Fecha</th>
+                  <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Tipo</th>
+                  <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Estado</th>
+                  <th className="text-right px-4 py-3 text-xs text-gray-400 font-medium">Total</th>
+                  <th className="text-right px-4 py-3 text-xs text-gray-400 font-medium">Pendiente</th>
+                  <th className="px-4 py-3"></th>
+                </tr>
+              </thead>
+              <tbody>
+                {filtered.map((f) => {
+                  const clienteTxt = f.customer
+                    ? `${f.customer.nombre ?? ""} ${f.customer.apellido ?? ""}`.trim()
+                    : "Consumidor final";
+                  return (
+                    <tr
+                      key={f.id}
+                      onClick={() => openFactura(f)}
+                      className="border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition"
                     >
-                      {f.status}
-                    </span>
-                    <p className="mt-2 font-bold">{fmtMoney(f.total)}</p>
-                    {Number(f.pendiente ?? 0) > 0 && (
-                      <p className="text-xs text-gray-600">
-                        Pendiente: {fmtMoney(f.pendiente)}
+                      <td className="px-4 py-3 text-xs text-gray-400 font-mono">{String(f.id).slice(0, 8)}...</td>
+                      <td className="px-4 py-3 font-medium text-gray-900">{clienteTxt}</td>
+                      <td className="px-4 py-3 text-xs text-gray-500">
+                        {new Date(f.created_at).toLocaleDateString("es-DO")}
+                      </td>
+                      <td className="px-4 py-3"><TipoBadge tipo={f.tipo_pago} /></td>
+                      <td className="px-4 py-3"><StatusBadge status={f.status} /></td>
+                      <td className="px-4 py-3 text-right font-semibold text-gray-900">{fmtMoney(f.total)}</td>
+                      <td className="px-4 py-3 text-right text-xs text-red-500">
+                        {Number(f.pendiente ?? 0) > 0 ? fmtMoney(f.pendiente) : "—"}
+                      </td>
+                      <td className="px-4 py-3">
+                        <ChevronRight size={14} className="text-gray-300" />
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* Móvil — cards */}
+          <div className="lg:hidden space-y-2">
+            {filtered.map((f) => {
+              const clienteTxt = f.customer
+                ? `${f.customer.nombre ?? ""} ${f.customer.apellido ?? ""}`.trim()
+                : "Consumidor final";
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => openFactura(f)}
+                  className="w-full text-left bg-white border border-gray-100 rounded-2xl p-4 transition active:scale-[0.99]"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1 overflow-hidden">
+                      <p className="font-semibold text-sm text-gray-900 truncate">{clienteTxt}</p>
+                      <div className="flex items-center gap-1.5 flex-wrap mt-1">
+                        <StatusBadge status={f.status} />
+                        <TipoBadge tipo={f.tipo_pago} />
+                        <span className="text-[10px] text-gray-400 font-mono">{String(f.id).slice(0, 8)}</span>
+                      </div>
+                      <p className="text-xs text-gray-400 mt-1">
+                        {new Date(f.created_at).toLocaleString("es-DO")}
                       </p>
-                    )}
+                    </div>
+                    <div className="text-right flex-shrink-0 ml-2">
+                      <p className="font-bold text-gray-900 whitespace-nowrap">{fmtMoney(f.total)}</p>
+                      {Number(f.pendiente ?? 0) > 0 && (
+                        <p className="text-xs text-red-500 mt-0.5 whitespace-nowrap">Pend: {fmtMoney(f.pendiente)}</p>
+                      )}
+                    </div>
                   </div>
-                </div>
-              </button>
-            );
-          })}
-        </div>
+                </button>
+              );
+            })}
+          </div>
+        </>
       )}
 
-      {/* DETALLE (modal) */}
-      {selected && (() => {
-        const tieneAbonos = (payments?.length ?? 0) > 0;
-        const bloqueaCancelar =
-          selected?.tipo_pago !== "cash" && tieneAbonos;
+      {/* ── MODAL DETALLE ── */}
+      {selected && (
+        <div className="fixed inset-0 bg-black/40 flex items-end lg:items-center justify-center z-50">
+          <div className="bg-white w-full lg:w-[560px] lg:rounded-3xl rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
 
-        return (
-
-          <div className="fixed inset-0 bg-black/40 flex items-end">
-            <div className="bg-white w-full rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
-              <div className="flex items-center justify-between">
-                <h2 className="text-lg font-bold">Detalle de factura</h2>
-                <button onClick={closeDetail} className="text-sm underline">
-                  Cerrar
-                </button>
+            {/* Header modal */}
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold text-gray-900">Detalle de factura</h2>
+                <p className="text-xs text-gray-400 font-mono mt-0.5">{String(selected.id).slice(0, 8)}...</p>
               </div>
+              <button onClick={closeDetail} className="w-8 h-8 grid place-items-center rounded-xl border border-gray-100">
+                <X size={14} />
+              </button>
+            </div>
 
-              <div className="mt-3 border rounded-2xl p-4">
-                <p className="text-sm text-gray-600">Cliente</p>
-                <p className="font-semibold">
-                  {selected.customer
-                    ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
-                    : "Consumidor final"}
-                </p>
-
-                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Tipo pago</p>
-                    <p className="font-semibold">{selected.tipo_pago}</p>
-                  </div>
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Estado</p>
-                    <p className="font-semibold">{selected.status}</p>
-                  </div>
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Total</p>
-                    <p className="font-semibold">{fmtMoney(selected.total)}</p>
-                  </div>
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Pendiente</p>
-                    <p className="font-semibold">{fmtMoney(selected.pendiente)}</p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="mt-4 border rounded-2xl p-4">
-                <p className="font-semibold mb-2">Productos</p>
-
-                {detailLoading ? (
-                  <p className="text-sm">Cargando detalle...</p>
-                ) : items.length === 0 ? (
-                  <p className="text-sm text-gray-500">Sin items.</p>
-                ) : (
-                  <div className="space-y-2">
-                    {items.map((it) => (
-                      <div key={it.id} className="border rounded-xl p-3">
-                        <div className="flex justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="font-semibold truncate">
-                              {it.nombre_producto_snapshot}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              {it.codigo_snapshot ? `Código: ${it.codigo_snapshot}` : ""}
-                            </p>
-                            <p className="text-xs text-gray-600">
-                              Cant: {it.cantidad} · Unit: {fmtMoney(it.precio_venta_unit)}
-                            </p>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold">{fmtMoney(it.subtotal)}</p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="mt-4 border rounded-2xl p-4">
-                <p className="font-semibold mb-2">Pagos / Abonos</p>
-
-                {detailLoading ? (
-                  <p className="text-sm">Cargando pagos...</p>
-                ) : payments.length === 0 ? (
-                  <p className="text-sm text-gray-500">
-                    Aún no hay pagos registrados.
+            {/* Info principal */}
+            <div className="bg-gray-50 rounded-2xl p-4 mb-4">
+              <div className="flex items-start justify-between mb-3">
+                <div>
+                  <p className="text-xs text-gray-500 mb-0.5">Cliente</p>
+                  <p className="font-semibold text-gray-900">
+                    {selected.customer
+                      ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
+                      : "Consumidor final"}
                   </p>
-                ) : (
-                  <div className="space-y-2">
-                    {payments.map((p) => (
-                      <div key={p.id} className="border rounded-xl p-3 flex justify-between">
-                        <div>
-                          <p className="text-sm font-semibold">{fmtMoney(p.monto)}</p>
-                          <p className="text-xs text-gray-600">
-                            {new Date(p.created_at).toLocaleString()}
-                          </p>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-              {selected.tipo_pago !== "cash" && (payments?.length ?? 0) > 0 && selected.status !== "cancelada" && (
-  <button
-    className="mt-3 w-full border border-red-300 text-red-700 p-3 rounded-xl font-semibold"
-    onClick={async () => {
-      const ok = confirm("¿Cancelar el ÚLTIMO abono? (Esto ajusta el pendiente automáticamente)");
-      if (!ok) return;
-
-      const { error } = await supabase.rpc("delete_last_payment", {
-        p_invoice_id: selected.id,
-      });
-
-      if (error) return toast.error(error.message);
-
-      toast.success("Último abono cancelado ✅");
-      // recargar el detalle de esa factura
-      await openFactura(selected); // si tu openFactura vuelve a cargar items y payments
-      await fetchFacturas();       // refrescar lista
-    }}
-  >
-    Cancelar último abono
-  </button>
-)}
-
-              <div className="mt-4 border rounded-2xl p-4">
-                <p className="text-sm text-gray-600">Contabilidad básica</p>
-                <div className="mt-2 grid grid-cols-2 gap-2 text-sm">
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Inversión (costo)</p>
-                    <p className="font-semibold">{fmtMoney(selected.total_costo)}</p>
-                  </div>
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Ganancia</p>
-                    <p className="font-semibold">{fmtMoney(selected.total_ganancia)}</p>
-                  </div>
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Pagado</p>
-                    <p className="font-semibold">{fmtMoney(selected.total_pagado)}</p>
-                  </div>
-                  <div className="border rounded-xl p-3">
-                    <p className="text-xs text-gray-600">Pendiente</p>
-                    <p className="font-semibold">{fmtMoney(selected.pendiente)}</p>
-                  </div>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {new Date(selected.created_at).toLocaleString("es-DO")}
+                  </p>
+                </div>
+                <div className="flex flex-col items-end gap-1">
+                  <StatusBadge status={selected.status} />
+                  <TipoBadge tipo={selected.tipo_pago} />
                 </div>
               </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                {[
+                  { label: "Total", value: fmtMoney(selected.total), accent: true },
+                  { label: "Pendiente", value: fmtMoney(selected.pendiente), danger: Number(selected.pendiente) > 0 },
+                  { label: "Pagado", value: fmtMoney(selected.total_pagado) },
+                  { label: "Ganancia", value: fmtMoney(selected.total_ganancia), success: true },
+                ].map((m) => (
+                  <div key={m.label} className="bg-white rounded-xl p-3 border border-gray-100">
+                    <p className="text-xs text-gray-400">{m.label}</p>
+                    <p className={`font-semibold text-sm mt-0.5 ${m.accent ? "text-gray-900" :
+                      m.danger && Number(selected.pendiente) > 0 ? "text-red-500" :
+                        m.success ? "text-green-600" : "text-gray-700"
+                      }`}>{m.value}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Productos */}
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Productos</p>
+              {detailLoading ? (
+                <p className="text-sm text-gray-400">Cargando...</p>
+              ) : items.length === 0 ? (
+                <p className="text-sm text-gray-400">Sin productos.</p>
+              ) : (
+                <div className="space-y-2">
+                  {items.map((it) => (
+                    <div key={it.id} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 truncate">{it.nombre_producto_snapshot}</p>
+                        <p className="text-xs text-gray-400">
+                          {it.cantidad} × {fmtMoney(it.precio_venta_unit)}
+                        </p>
+                      </div>
+                      <p className="text-sm font-semibold text-gray-900 flex-shrink-0 ml-3">{fmtMoney(it.subtotal)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Abonos */}
+            <div className="mb-4">
+              <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Abonos</p>
+              {detailLoading ? (
+                <p className="text-sm text-gray-400">Cargando...</p>
+              ) : payments.length === 0 ? (
+                <p className="text-sm text-gray-400">Sin abonos registrados.</p>
+              ) : (
+                <div className="space-y-2">
+                  {payments.map((p) => (
+                    <div key={p.id} className="flex items-center justify-between border border-gray-100 rounded-xl p-3">
+                      <p className="text-xs text-gray-400">{new Date(p.created_at).toLocaleString("es-DO")}</p>
+                      <p className="text-sm font-semibold text-green-600">{fmtMoney(p.monto)}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Acciones */}
+            <div className="space-y-2 border-t border-gray-100 pt-4">
+              {selected.tipo_pago !== "cash" && tieneAbonos && selected.status !== "cancelada" && (
+                <button
+                  className="w-full border border-amber-200 text-amber-700 bg-amber-50 py-3 rounded-xl text-sm font-semibold"
+                  onClick={async () => {
+                    const ok = confirm("¿Cancelar el último abono?");
+                    if (!ok) return;
+                    const { error } = await supabase.rpc("delete_last_payment", { p_invoice_id: selected.id });
+                    if (error) return toast.error(error.message);
+                    toast.success("Último abono cancelado ✅");
+                    await openFactura(selected);
+                    await fetchFacturas();
+                  }}
+                >
+                  Cancelar último abono
+                </button>
+              )}
 
               <button
                 disabled={selected.status === "cancelada" || bloqueaCancelar}
-                className={
-                  "mt-4 w-full p-3 rounded-xl font-semibold border " +
-                  (selected.status === "cancelada" || bloqueaCancelar
-                    ? "opacity-50 cursor-not-allowed"
-                    : "border-red-300 text-red-700")
-                }
+                className={`w-full py-3 rounded-xl text-sm font-semibold border transition ${selected.status === "cancelada" || bloqueaCancelar
+                  ? "opacity-40 cursor-not-allowed border-gray-100 text-gray-400"
+                  : "border-red-200 text-red-600 bg-red-50"
+                  }`}
                 onClick={async () => {
-                  const ok = confirm("¿Seguro que quieres CANCELAR esta factura? Esto devolverá el inventario.");
+                  const ok = confirm("¿Cancelar esta factura? Se devolverá el inventario.");
                   if (!ok) return;
-
-                  const { error } = await supabase.rpc("cancel_invoice", {
-                    p_invoice_id: selected.id,
-                  });
-
+                  const { error } = await supabase.rpc("cancel_invoice", { p_invoice_id: selected.id });
                   if (error) return toast.error(error.message);
-
                   toast.success("Factura cancelada ✅");
                   closeDetail();
                   fetchFacturas();
@@ -335,12 +396,10 @@ export default function Facturas() {
                     ? "No se puede cancelar (tiene abonos)"
                     : "Cancelar factura"}
               </button>
-
-              {/* nota: luego pondremos aquí el botón "Agregar abono" */}
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }
