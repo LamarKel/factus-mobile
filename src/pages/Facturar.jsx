@@ -2,47 +2,28 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "../lib/supabase";
 import ScannerModal from "../components/ScannerModal";
+import { ShoppingCart, Search, X, Printer, FileText, Scan } from "lucide-react";
 
-// ── Componente del ticket ────────────────────────────────
+// ── Ticket ───────────────────────────────────────────────
 const Ticket = ({ factura, perfil }) => {
   if (!factura) return null;
   return (
-    <div style={{
-      fontFamily: "monospace",
-      fontSize: "12px",
-      width: "280px",
-      padding: "12px",
-      color: "#000",
-      background: "#fff",
-    }}>
-      {/* Logo / Nombre */}
+    <div style={{ fontFamily: "monospace", fontSize: "12px", width: "280px", padding: "12px", color: "#000", background: "#fff" }}>
       <div style={{ textAlign: "center", marginBottom: "8px" }}>
         {perfil?.logo_url && (
           <img src={perfil.logo_url} alt="logo"
             style={{ width: "60px", height: "60px", objectFit: "contain", margin: "0 auto 4px" }} />
         )}
-        <div style={{ fontWeight: "bold", fontSize: "14px" }}>
-          {perfil?.nombre_tienda ?? "Mi Tienda"}
-        </div>
-        {perfil?.telefono && (
-          <div>Tel: {perfil.telefono}</div>
-        )}
+        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{perfil?.nombre_tienda ?? "Mi Tienda"}</div>
+        {perfil?.telefono && <div>Tel: {perfil.telefono}</div>}
       </div>
-
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-
-      {/* Info factura */}
       <div style={{ marginBottom: "6px" }}>
         <div>Fecha: {new Date(factura.fecha).toLocaleString("es-DO")}</div>
         <div>Pago: {factura.tipo_pago === "cash" ? "Cash" : factura.tipo_pago === "credito" ? "Crédito" : "Plazo"}</div>
-        {factura.cliente && (
-          <div>Cliente: {factura.cliente}</div>
-        )}
+        {factura.cliente && <div>Cliente: {factura.cliente}</div>}
       </div>
-
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-
-      {/* Productos */}
       <table style={{ width: "100%", borderCollapse: "collapse" }}>
         <thead>
           <tr>
@@ -54,9 +35,7 @@ const Ticket = ({ factura, perfil }) => {
         <tbody>
           {factura.items.map((it, i) => (
             <tr key={i}>
-              <td style={{ paddingRight: "4px", maxWidth: "140px", wordBreak: "break-word" }}>
-                {it.nombre}
-              </td>
+              <td style={{ paddingRight: "4px", maxWidth: "140px", wordBreak: "break-word" }}>{it.nombre}</td>
               <td style={{ textAlign: "center" }}>{it.qty}</td>
               <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                 RD$ {(it.qty * Number(it.precio_venta)).toFixed(2)}
@@ -65,21 +44,70 @@ const Ticket = ({ factura, perfil }) => {
           ))}
         </tbody>
       </table>
-
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-
-      {/* Total */}
-      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "14px" }}>
+      {factura.descuentoMonto > 0 && (
+        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "12px", color: "#16a34a" }}>
+          <span>Descuento</span>
+          <span>- RD$ {Number(factura.descuentoMonto).toFixed(2)}</span>
+        </div>
+      )}
+      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "14px", marginTop: "4px" }}>
         <span>TOTAL</span>
         <span>RD$ {Number(factura.total).toFixed(2)}</span>
       </div>
-
       <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-
-      <div style={{ textAlign: "center", fontSize: "11px", marginTop: "8px" }}>
-        ¡Gracias por su compra!
-      </div>
+      <div style={{ textAlign: "center", fontSize: "11px", marginTop: "8px" }}>¡Gracias por su compra!</div>
     </div>
+  );
+};
+
+// ── Card de producto ─────────────────────────────────────
+const ProductCard = ({ p, onAdd, inCart }) => {
+  const agotado = p.control_inventario && (p.cantidad ?? 0) <= 0;
+  return (
+    <button
+      onClick={() => !agotado && onAdd(p)}
+      disabled={agotado}
+      className={`relative text-left border rounded-2xl overflow-hidden bg-white transition-all active:scale-95 ${inCart ? "border-gray-900 ring-1 ring-gray-900" : "border-gray-100 hover:border-gray-300"
+        } ${agotado ? "opacity-50" : ""}`}
+    >
+      {/* Imagen */}
+      <div className="w-full aspect-[4/3] bg-gray-50 flex items-center justify-center overflow-hidden">
+        {p.imagen_url ? (
+          <img src={p.imagen_url} alt={p.nombre}
+            className="w-full h-full object-cover"
+            onError={(e) => { e.target.style.display = "none"; }} />
+        ) : (
+          <span className="text-3xl">🌸</span>
+        )}
+      </div>
+
+      {/* Badge agotado */}
+      {agotado && (
+        <div className="absolute inset-0 bg-white/60 flex items-center justify-center">
+          <span className="text-xs font-semibold text-gray-500 bg-white px-2 py-1 rounded-full border">Agotado</span>
+        </div>
+      )}
+
+      {/* Badge en carrito */}
+      {inCart && !agotado && (
+        <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-gray-900 text-white rounded-full flex items-center justify-center text-[10px] font-bold">
+          {inCart}
+        </div>
+      )}
+
+      {/* Info */}
+      <div className="p-1.5">
+        <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.nombre}</p>
+        {p.categoria && <p className="text-[10px] text-gray-400 mt-0.5">{p.categoria}</p>}
+        <p className="text-xs font-bold text-gray-900 mt-1">
+          RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+        </p>
+        {p.control_inventario && (
+          <p className="text-[10px] text-gray-400">Stock: {p.cantidad ?? 0}</p>
+        )}
+      </div>
+    </button>
   );
 };
 
@@ -89,47 +117,32 @@ export default function Facturar() {
   const [productos, setProductos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [perfil, setPerfil] = useState(null);
+  const [descuentos, setDescuentos] = useState([]);
 
   const [customerId, setCustomerId] = useState("");
   const [tipoPago, setTipoPago] = useState("cash");
+  const [discountId, setDiscountId] = useState("");
   const [searchProd, setSearchProd] = useState("");
+  const [catActiva, setCatActiva] = useState("Todo");
   const [cart, setCart] = useState([]);
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Estado del ticket para imprimir
-  const [facturaImpresa, setFacturaImpresa] = useState(null);
+  const [showCarrito, setShowCarrito] = useState(false);
   const [showTicket, setShowTicket] = useState(false);
-
-  const [descuentos, setDescuentos] = useState([]);
-  const [discountId, setDiscountId] = useState("");
-  const ticketRef = useRef();
-
+  const [facturaImpresa, setFacturaImpresa] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
+
+  const ticketRef = useRef();
 
   const handlePrint = useReactToPrint({
     contentRef: ticketRef,
     documentTitle: "Ticket",
     pageStyle: `
-    @page {
-      size: 80mm auto;
-      margin: 0;
-    }
-    @media print {
-      body { margin: 0; }
-    }
-  `,
+      @page { size: 58mm auto; margin: 2mm; }
+      @media print { body { margin: 0; } }
+    `,
   });
-
-  const handleScan = (codigo) => {
-    setShowScanner(false);
-    const producto = productos.find((p) => p.codigo === codigo);
-    if (!producto) {
-      alert(`No se encontró ningún producto con el código: ${codigo}`);
-      return;
-    }
-    addToCart(producto);
-  };
 
   const loadData = async () => {
     setLoading(true);
@@ -137,27 +150,10 @@ export default function Facturar() {
     const userId = userData.user.id;
 
     const [c, p, perf, desc] = await Promise.all([
-      supabase.from("customers")
-        .select("id,nombre,apellido,telefono")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false }),
-
-      supabase.from("products")
-        .select("id,nombre,codigo,precio_venta,precio_compra,control_inventario,cantidad")
-        .eq("user_id", userId)
-        .order("created_at", { ascending: false }),
-
-      supabase.from("perfiles")
-        .select("nombre_tienda,telefono,logo_url")
-        .eq("user_id", userId)
-        .single(),
-
-      supabase.from("discounts")
-        .select("id,nombre,tipo,valor")
-        .eq("user_id", userId)
-        .eq("activo", true)
-        .order("nombre"),
-
+      supabase.from("customers").select("id,nombre,apellido,telefono").eq("user_id", userId).order("created_at", { ascending: false }),
+      supabase.from("products").select("id,nombre,codigo,precio_venta,precio_compra,control_inventario,cantidad,imagen_url,categoria").eq("user_id", userId).order("nombre", { ascending: true }),
+      supabase.from("perfiles").select("nombre_tienda,telefono,logo_url").eq("user_id", userId).single(),
+      supabase.from("discounts").select("id,nombre,tipo,valor").eq("user_id", userId).eq("activo", true).order("nombre"),
     ]);
 
     setClientes(c.data ?? []);
@@ -167,32 +163,33 @@ export default function Facturar() {
     setLoading(false);
   };
 
-
   useEffect(() => { loadData(); }, []);
+
+  // Categorías únicas
+  const categorias = useMemo(() => {
+    const cats = [...new Set(productos.map((p) => p.categoria).filter(Boolean))];
+    return ["Todo", ...cats];
+  }, [productos]);
 
   const filteredProducts = useMemo(() => {
     const s = searchProd.trim().toLowerCase();
-    if (!s) return productos;
-    return productos.filter((p) =>
-      `${p.nombre} ${p.codigo}`.toLowerCase().includes(s)
-    );
-  }, [productos, searchProd]);
+    return productos.filter((p) => {
+      const matchSearch = !s || `${p.nombre} ${p.codigo} ${p.categoria ?? ""}`.toLowerCase().includes(s);
+      const matchCat = catActiva === "Todo" || p.categoria === catActiva;
+      return matchSearch && matchCat;
+    });
+  }, [productos, searchProd, catActiva]);
 
-  const total = useMemo(() =>
-    cart.reduce((acc, it) => acc + it.qty * Number(it.precio_venta), 0),
-    [cart]
-  );
+  // Totales
+  const subtotal = useMemo(() => cart.reduce((acc, it) => acc + it.qty * Number(it.precio_venta), 0), [cart]);
   const descuentoSeleccionado = descuentos.find((d) => d.id === discountId);
-
   const descuentoMonto = useMemo(() => {
     if (!descuentoSeleccionado) return 0;
-    if (descuentoSeleccionado.tipo === "porcentaje") {
-      return Math.min(total * (descuentoSeleccionado.valor / 100), total);
-    }
-    return Math.min(descuentoSeleccionado.valor, total);
-  }, [descuentoSeleccionado, total]);
-
-  const totalConDescuento = total - descuentoMonto;
+    if (descuentoSeleccionado.tipo === "porcentaje") return Math.min(subtotal * (descuentoSeleccionado.valor / 100), subtotal);
+    return Math.min(descuentoSeleccionado.valor, subtotal);
+  }, [descuentoSeleccionado, subtotal]);
+  const totalConDescuento = subtotal - descuentoMonto;
+  const itemsEnCarrito = cart.reduce((a, b) => a + b.qty, 0);
 
   const addToCart = (p) => {
     setMsg("");
@@ -207,235 +204,276 @@ export default function Facturar() {
     setCart((prev) => prev.map((x) => x.product_id === product_id ? { ...x, qty } : x).filter((x) => x.qty > 0));
   };
 
+  const handleScan = (codigo) => {
+    setShowScanner(false);
+    const producto = productos.find((p) => p.codigo === codigo);
+    if (!producto) { alert(`No se encontró producto con código: ${codigo}`); return; }
+    addToCart(producto);
+  };
+
   const createInvoice = async () => {
     setMsg("");
     if (cart.length === 0) return setMsg("Agrega al menos un producto.");
     setSaving(true);
 
-    const items = cart.map((it) => ({ product_id: it.product_id, cantidad: it.qty }));
-
     const { data, error } = await supabase.rpc("create_invoice", {
       p_customer_id: customerId || null,
       p_tipo_pago: tipoPago,
-      p_items: items,
+      p_items: cart.map((it) => ({ product_id: it.product_id, cantidad: it.qty })),
       p_discount_id: discountId || null,
     });
 
-
-
     setSaving(false);
-
     if (error) { setMsg(error.message); return; }
 
-    // Busca nombre del cliente seleccionado
     const clienteNombre = customerId
-      ? clientes.find((c) => c.id === customerId)?.nombre + " " + (clientes.find((c) => c.id === customerId)?.apellido ?? "")
+      ? `${clientes.find((c) => c.id === customerId)?.nombre ?? ""} ${clientes.find((c) => c.id === customerId)?.apellido ?? ""}`.trim()
       : "Consumidor Final";
 
-    // Arma la factura para imprimir
     setFacturaImpresa({
       fecha: new Date().toISOString(),
       tipo_pago: tipoPago,
       cliente: clienteNombre,
-      items: cart.map((it) => ({
-        nombre: it.nombre,
-        qty: it.qty,
-        precio_venta: it.precio_venta,
-      })),
-      total,
+      descuentoMonto,
+      items: cart.map((it) => ({ nombre: it.nombre, qty: it.qty, precio_venta: it.precio_venta })),
+      total: totalConDescuento,
     });
 
-    setShowTicket(true);
-
-    // Limpia el formulario
     setCart([]);
     setCustomerId("");
     setTipoPago("cash");
     setSearchProd("");
     setDiscountId("");
+    setShowCarrito(false);
+    setShowTicket(true);
     loadData();
   };
 
-  if (loading) return <div className="p-4">Cargando...</div>;
+  if (loading) return (
+    <div className="flex items-center justify-center h-64 text-gray-400 text-sm">
+      Cargando...
+    </div>
+  );
 
-  return (
-    <div className="min-h-screen p-4 pb-28">
-      <h1 className="text-2xl font-bold mb-4">Nueva Factura</h1>
+  // ── Panel del carrito (reutilizable en móvil y desktop) ──
+  const CarritoPanel = () => (
+    <div className="flex flex-col h-full">
+      {/* Config */}
+      <div className="space-y-2 mb-3">
+        <select
+          className="w-full border border-gray-100 rounded-xl p-2.5 text-sm bg-white text-gray-700"
+          value={customerId}
+          onChange={(e) => setCustomerId(e.target.value)}
+        >
+          <option value="">Consumidor final</option>
+          {clientes.map((c) => (
+            <option key={c.id} value={c.id}>
+              {c.nombre} {c.apellido || ""}
+            </option>
+          ))}
+        </select>
 
-      <div className="space-y-3">
-        {/* Cliente */}
-        <div className="border rounded-2xl p-4 bg-white">
-          <p className="text-sm text-gray-600 mb-2">Cliente</p>
-          <select className="w-full border rounded-xl p-3 bg-white" value={customerId}
-            onChange={(e) => setCustomerId(e.target.value)}>
-            <option value="">Consumidor final</option>
-            {clientes.map((c) => (
-              <option key={c.id} value={c.id}>
-                {c.nombre} {c.apellido || ""} {c.telefono ? `(${c.telefono})` : ""}
-              </option>
-            ))}
-          </select>
-        </div>
-
-        {/* Tipo de pago */}
-        <div className="border rounded-2xl p-4 bg-white">
-          <p className="text-sm text-gray-600 mb-2">Tipo de pago</p>
-          <div className="grid grid-cols-3 gap-2">
-            {[{ k: "cash", t: "Cash" }, { k: "credito", t: "Crédito" }, { k: "plazo", t: "Plazo" }].map((x) => (
-              <button key={x.k} onClick={() => setTipoPago(x.k)}
-                className={"p-3 rounded-xl border text-sm " + (tipoPago === x.k ? "bg-black text-white" : "bg-white")}>
-                {x.t}
-              </button>
-            ))}
-          </div>
+        <div className="grid grid-cols-3 gap-1.5">
+          {[{ k: "cash", t: "Cash" }, { k: "credito", t: "Crédito" }, { k: "plazo", t: "Plazo" }].map((x) => (
+            <button key={x.k} onClick={() => setTipoPago(x.k)}
+              className={`py-2 rounded-xl text-xs font-medium border transition ${tipoPago === x.k ? "bg-gray-900 text-white border-gray-900" : "border-gray-100 text-gray-600"}`}>
+              {x.t}
+            </button>
+          ))}
         </div>
 
         {descuentos.length > 0 && (
-          <div className="border rounded-2xl p-4 bg-white">
-            <p className="text-sm text-gray-600 mb-2">Descuento (opcional)</p>
-            <select
-              className="w-full border rounded-xl p-3 bg-white"
-              value={discountId}
-              onChange={(e) => setDiscountId(e.target.value)}
-            >
-              <option value="">Sin descuento</option>
-              {descuentos.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.nombre} ({d.tipo === "porcentaje" ? `${d.valor}%` : `RD$ ${d.valor}`})
-                </option>
-              ))}
-            </select>
+          <select className="w-full border border-gray-100 rounded-xl p-2.5 text-sm bg-white text-gray-700"
+            value={discountId} onChange={(e) => setDiscountId(e.target.value)}>
+            <option value="">Sin descuento</option>
+            {descuentos.map((d) => (
+              <option key={d.id} value={d.id}>
+                {d.nombre} ({d.tipo === "porcentaje" ? `${d.valor}%` : `RD$ ${d.valor}`})
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
+
+      {/* Items */}
+      <div className="flex-1 overflow-y-auto space-y-2 min-h-0">
+        {cart.length === 0 ? (
+          <p className="text-sm text-gray-400 text-center py-8">Agrega productos al carrito</p>
+        ) : (
+          cart.map((it) => (
+            <div key={it.product_id} className="flex items-center gap-2 border border-gray-100 rounded-xl p-2.5">
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-gray-900 truncate">{it.nombre}</p>
+                <p className="text-xs text-gray-400">RD$ {Number(it.precio_venta).toFixed(2)}</p>
+              </div>
+              <div className="flex items-center gap-1 flex-shrink-0">
+                <button onClick={() => updateQty(it.product_id, it.qty - 1)}
+                  className="w-7 h-7 border border-gray-100 rounded-lg text-sm flex items-center justify-center text-gray-600">−</button>
+                <span className="text-xs font-semibold w-6 text-center">{it.qty}</span>
+                <button onClick={() => updateQty(it.product_id, it.qty + 1)}
+                  className="w-7 h-7 border border-gray-100 rounded-lg text-sm flex items-center justify-center text-gray-600">+</button>
+              </div>
+              <p className="text-xs font-bold text-gray-900 w-16 text-right flex-shrink-0">
+                RD$ {(it.qty * Number(it.precio_venta)).toFixed(2)}
+              </p>
+            </div>
+          ))
+        )}
+      </div>
+
+      {/* Totales */}
+      <div className="border-t border-gray-100 pt-3 mt-3 space-y-1">
+        <div className="flex justify-between text-xs text-gray-500">
+          <span>Subtotal</span>
+          <span>RD$ {subtotal.toFixed(2)}</span>
+        </div>
+        {descuentoMonto > 0 && (
+          <div className="flex justify-between text-xs text-green-600">
+            <span>Descuento</span>
+            <span>- RD$ {descuentoMonto.toFixed(2)}</span>
           </div>
         )}
-
-        {/* Productos */}
-        <div className="border rounded-2xl p-4 bg-white">
-          <p className="text-sm text-gray-600 mb-2">Agregar productos</p>
-          <div className="flex gap-2">
-            <input
-              className="flex-1 border rounded-xl p-3"
-              placeholder="Buscar producto..."
-              value={searchProd}
-              onChange={(e) => setSearchProd(e.target.value)}
-            />
-            <button
-              type="button"
-              onClick={() => setShowScanner(true)}
-              className="px-4 border rounded-xl bg-gray-50"
-            >
-              📷
-            </button>
-          </div>
-          <div className="mt-3 space-y-2 max-h-64 overflow-y-auto">
-            {filteredProducts.slice(0, 30).map((p) => (
-              <button key={p.id} onClick={() => addToCart(p)} className="w-full text-left border rounded-xl p-3">
-                <div className="flex justify-between gap-3">
-                  <div className="min-w-0">
-                    <p className="font-semibold truncate">{p.nombre}</p>
-                    <p className="text-xs text-gray-600">Código: {p.codigo}</p>
-                    {p.control_inventario && (
-                      <p className="text-xs text-gray-600">Inventario: {p.cantidad ?? 0}</p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold">RD$ {Number(p.precio_venta).toFixed(2)}</p>
-                    <p className="text-xs text-gray-600">Toca para agregar</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Detalle */}
-        <div className="border rounded-2xl p-4 bg-white">
-          <p className="text-sm text-gray-600 mb-2">Detalle</p>
-          {cart.length === 0 ? (
-            <p className="text-sm text-gray-500">Aún no has agregado productos.</p>
-          ) : (
-            <div className="space-y-2">
-              {cart.map((it) => (
-                <div key={it.product_id} className="border rounded-xl p-3">
-                  <div className="flex justify-between items-start gap-3">
-                    <div className="min-w-0">
-                      <p className="font-semibold truncate">{it.nombre}</p>
-                      <p className="text-xs text-gray-600">RD$ {Number(it.precio_venta).toFixed(2)}</p>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <button className="w-10 h-10 border rounded-xl"
-                        onClick={() => updateQty(it.product_id, it.qty - 1)}>-</button>
-                      <input className="w-14 text-center border rounded-xl p-2" inputMode="numeric"
-                        value={it.qty} onChange={(e) => updateQty(it.product_id, Number(e.target.value || 0))} />
-                      <button className="w-10 h-10 border rounded-xl"
-                        onClick={() => updateQty(it.product_id, it.qty + 1)}>+</button>
-                    </div>
-                  </div>
-                  <div className="mt-2 text-sm text-right">
-                    Subtotal: <span className="font-semibold">RD$ {(it.qty * Number(it.precio_venta)).toFixed(2)}</span>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          <div className="mt-4 space-y-1">
-            <div className="flex justify-between items-center">
-              <p className="text-sm text-gray-600">Subtotal</p>
-              <p className="text-sm">RD$ {total.toFixed(2)}</p>
-            </div>
-            {descuentoMonto > 0 && (
-              <div className="flex justify-between items-center text-green-600">
-                <p className="text-sm">Descuento</p>
-                <p className="text-sm">- RD$ {descuentoMonto.toFixed(2)}</p>
-              </div>
-            )}
-            <div className="flex justify-between items-center pt-1 border-t">
-              <p className="text-sm text-gray-600 font-semibold">Total</p>
-              <p className="text-xl font-bold">RD$ {totalConDescuento.toFixed(2)}</p>
-            </div>
-          </div>
-
-          {msg && <p className="mt-3 text-sm text-red-600">{msg}</p>}
-
-          <button disabled={saving} onClick={createInvoice}
-            className="mt-4 w-full bg-black text-white p-3 rounded-xl font-semibold disabled:opacity-60">
-            {saving ? "Guardando..." : "Guardar Factura"}
-          </button>
+        <div className="flex justify-between items-center pt-1">
+          <span className="text-sm font-semibold text-gray-900">Total</span>
+          <span className="text-lg font-bold text-gray-900">RD$ {totalConDescuento.toFixed(2)}</span>
         </div>
       </div>
 
+      {msg && <p className="text-xs text-red-500 mt-2">{msg}</p>}
+
+      <button
+        disabled={saving || cart.length === 0}
+        onClick={createInvoice}
+        className="mt-3 w-full bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50 transition"
+      >
+        {saving ? "Guardando..." : `Guardar factura · RD$ ${totalConDescuento.toFixed(2)}`}
+      </button>
+    </div>
+  );
+
+  return (
+    <div className="h-[calc(100vh-56px)] flex flex-col lg:flex-row overflow-hidden">
+
+      {/* ── PANEL IZQUIERDO — Productos ── */}
+      <div className="flex-1 flex flex-col min-h-0 overflow-hidden">
+
+        {/* Buscador + scanner */}
+        <div className="p-3 border-b border-gray-100 bg-white space-y-2">
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
+              <input
+                className="w-full pl-8 pr-3 py-2.5 border border-gray-100 rounded-xl text-sm bg-gray-50 focus:outline-none focus:border-gray-300"
+                placeholder="Buscar producto o código..."
+                value={searchProd}
+                onChange={(e) => setSearchProd(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => setShowScanner(true)}
+              className="w-10 h-10 border border-gray-100 rounded-xl flex items-center justify-center text-gray-500 hover:bg-gray-50"
+            >
+              <Scan size={16} />
+            </button>
+          </div>
+
+          {/* Filtros por categoría */}
+          {categorias.length > 1 && (
+            <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-hide">
+              {categorias.map((cat) => (
+                <button
+                  key={cat}
+                  onClick={() => setCatActiva(cat)}
+                  className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition ${catActiva === cat ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-600"
+                    }`}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Grid de productos */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {filteredProducts.length === 0 ? (
+            <p className="text-center text-gray-400 text-sm py-12">No se encontraron productos</p>
+          ) : (
+            <div className="grid grid-cols-3 sm:grid-cols-4 lg:grid-cols-3 xl:grid-cols-4 gap-2">
+
+              {filteredProducts.map((p) => (
+                <ProductCard
+                  key={p.id}
+                  p={p}
+                  onAdd={addToCart}
+                  inCart={cart.find((x) => x.product_id === p.id)?.qty ?? 0}
+                />
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── PANEL DERECHO — Carrito (solo desktop) ── */}
+      <div className="hidden lg:flex flex-col w-80 border-l border-gray-100 bg-white p-4 overflow-hidden">
+        <h2 className="text-sm font-semibold text-gray-900 mb-3">
+          Carrito {itemsEnCarrito > 0 && <span className="text-gray-400 font-normal">({itemsEnCarrito} items)</span>}
+        </h2>
+        <CarritoPanel />
+      </div>
+
+      {/* ── BOTÓN FLOTANTE CARRITO (solo móvil) ── */}
+      {itemsEnCarrito > 0 && (
+        <button
+          onClick={() => setShowCarrito(true)}
+          className="lg:hidden fixed bottom-20 right-4 z-30 bg-gray-900 text-white rounded-2xl px-4 py-3 flex items-center gap-2 shadow-lg"
+        >
+          <ShoppingCart size={18} />
+          <span className="text-sm font-semibold">{itemsEnCarrito} items</span>
+          <span className="text-sm font-bold">· RD$ {totalConDescuento.toFixed(2)}</span>
+        </button>
+      )}
+
+      {/* ── MODAL CARRITO MÓVIL ── */}
+      {showCarrito && (
+        <div className="lg:hidden fixed inset-0 bg-black/40 flex items-end z-50">
+          <div className="bg-white w-full rounded-t-3xl p-5 max-h-[85vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-base font-bold text-gray-900">Tu pedido</h2>
+              <button onClick={() => setShowCarrito(false)}>
+                <X size={18} className="text-gray-500" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto min-h-0">
+              <CarritoPanel />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── MODAL TICKET ── */}
       {showTicket && (
-        <div className="fixed inset-0 bg-black/40 flex items-end z-50">
-          <div className="bg-white w-full rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-black/40 flex items-end lg:items-center justify-center z-50">
+          <div className="bg-white w-full lg:w-auto lg:rounded-3xl rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-lg font-bold">🧾 Factura lista</h2>
-              <button onClick={() => setShowTicket(false)} className="text-sm underline">Cerrar</button>
+              <h2 className="text-base font-bold text-gray-900">Factura guardada</h2>
+              <button onClick={() => setShowTicket(false)}>
+                <X size={18} className="text-gray-500" />
+              </button>
             </div>
-
-            {/* Preview del ticket */}
-            <div className="flex justify-center mb-4 border rounded-xl p-4 bg-gray-50 overflow-x-auto">
+            <div className="flex justify-center mb-4 border border-gray-100 rounded-xl p-4 bg-gray-50 overflow-x-auto">
               <div ref={ticketRef}>
                 <Ticket factura={facturaImpresa} perfil={perfil} />
               </div>
             </div>
-
-            {/* Botones */}
             <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={handlePrint}
-                className="w-full bg-black text-white rounded-xl p-3 font-semibold flex items-center justify-center gap-2"
-              >
-                🖨️ Imprimir
+              <button onClick={handlePrint}
+                className="flex items-center justify-center gap-2 bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold">
+                <Printer size={16} /> Imprimir
               </button>
-              <button
-                onClick={() => {
-                  // Guarda como PDF usando el mismo diálogo de impresión
-                  handlePrint();
-                }}
-                className="w-full border rounded-xl p-3 font-semibold flex items-center justify-center gap-2"
-              >
-                📄 Guardar PDF
+              <button onClick={handlePrint}
+                className="flex items-center justify-center gap-2 border border-gray-100 rounded-xl py-3 text-sm font-semibold text-gray-700">
+                <FileText size={16} /> Guardar PDF
               </button>
             </div>
           </div>

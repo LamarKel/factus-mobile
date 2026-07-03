@@ -1,33 +1,30 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
+import imageCompression from "browser-image-compression";
+import { Upload, Link, Copy, Check, Store } from "lucide-react";
 
 export default function Perfil() {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
+    const [uploading, setUploading] = useState(false);
     const [msg, setMsg] = useState("");
-    const [msgType, setMsgType] = useState("error"); // "error" | "success"
+    const [msgType, setMsgType] = useState("error");
     const [userId, setUserId] = useState("");
+    const [copied, setCopied] = useState(false);
 
     const [form, setForm] = useState({
-        nombre_tienda: "",
-        telefono: "",
-        logo_url: "",
+        nombre_tienda: "", telefono: "", logo_url: "",
     });
 
-    // ── Cargar perfil ────────────────────────────────────────
     useEffect(() => {
         const fetchPerfil = async () => {
             const { data: userData } = await supabase.auth.getUser();
             const user = userData.user;
-
-
             setUserId(user.id);
 
-            const { data, error } = await supabase
-                .from("perfiles")
-                .select("*")
-                .eq("user_id", user.id)
-                .single();
+            const { data } = await supabase
+                .from("perfiles").select("*")
+                .eq("user_id", user.id).single();
 
             if (data) {
                 setForm({
@@ -41,182 +38,192 @@ export default function Perfil() {
         fetchPerfil();
     }, []);
 
-    // ── Subir logo ───────────────────────────────────────────
     const subirLogo = async (file) => {
-        const ext = file.name.split(".").pop();
-        const fileName = `logo_${Date.now()}.${ext}`;
+        setUploading(true);
+        try {
+            const opciones = { maxSizeMB: 0.3, maxWidthOrHeight: 400, useWebWorker: true, fileType: "image/webp" };
+            const compressed = await imageCompression(file, opciones);
+            const fileName = `logo_${Date.now()}.webp`;
 
-        const { error } = await supabase.storage
-            .from("imagen")
-            .upload(fileName, file, { upsert: true });
+            const { error } = await supabase.storage
+                .from("imagen").upload(fileName, compressed, { upsert: true, contentType: "image/webp" });
 
-        if (error) {
-            setMsgType("error");
-            setMsg("Error al subir logo: " + error.message);
-            return;
-        }
+            if (error) { setMsgType("error"); setMsg("Error al subir logo: " + error.message); return; }
 
-        const { data } = supabase.storage
-            .from("imagen")
-            .getPublicUrl(fileName);
-
-        setForm((prev) => ({ ...prev, logo_url: data.publicUrl }));
+            const { data } = supabase.storage.from("imagen").getPublicUrl(fileName);
+            setForm((prev) => ({ ...prev, logo_url: data.publicUrl }));
+        } catch (err) {
+            setMsgType("error"); setMsg("Error: " + err.message);
+        } finally { setUploading(false); }
     };
 
-    // ── Guardar perfil ───────────────────────────────────────
     const handleGuardar = async () => {
         setMsg("");
         if (!form.nombre_tienda.trim()) {
-            setMsgType("error");
-            return setMsg("El nombre de la tienda es obligatorio.");
+            setMsgType("error"); return setMsg("El nombre de la tienda es obligatorio.");
         }
-
         setSaving(true);
         const { data: userData } = await supabase.auth.getUser();
-        const user = userData.user;
 
-        const payload = {
-            user_id: user.id,
+        const { error } = await supabase.from("perfiles").upsert({
+            user_id: userData.user.id,
             nombre_tienda: form.nombre_tienda.trim(),
             telefono: form.telefono.trim() || null,
             logo_url: form.logo_url.trim() || null,
-        };
-
-        const { error } = await supabase
-            .from("perfiles")
-            .upsert(payload, { onConflict: "user_id" });
+        }, { onConflict: "user_id" });
 
         setSaving(false);
-
-        if (error) {
-            setMsgType("error");
-            setMsg(error.message);
-        } else {
-            setMsgType("success");
-            setMsg("Perfil guardado correctamente.");
-        }
+        if (error) { setMsgType("error"); setMsg(error.message); }
+        else { setMsgType("success"); setMsg("Perfil guardado correctamente."); }
     };
 
-    if (loading) return <p className="p-4">Cargando...</p>;
+    const copiarLink = () => {
+        navigator.clipboard.writeText(`${window.location.origin}/catalogo/${userId}`);
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+    };
+
+    const catalogoUrl = `${window.location.origin}/catalogo/${userId}`;
+
+    if (loading) return (
+        <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>
+    );
 
     return (
-        <div className="min-h-screen p-4 pb-24">
-            <h1 className="text-2xl font-bold mb-6">Perfil de la tienda</h1>
+        <div className="w-full p-4 lg:p-6 lg:max-w-xl lg:mx-auto pb-24">
 
-            {/* Logo */}
-            <div className="flex flex-col items-center mb-6">
-                <div className="w-24 h-24 rounded-2xl border-2 border-dashed border-gray-300 overflow-hidden flex items-center justify-center bg-gray-50 mb-3">
-                    {form.logo_url ? (
-                        <img
-                            src={form.logo_url}
-                            alt="Logo"
-                            className="w-full h-full object-contain"
-                            onError={(e) => (e.target.style.display = "none")}
-                        />
-                    ) : (
-                        <span className="text-4xl">🏪</span>
-                    )}
-                </div>
 
-                <label className="flex items-center gap-2 text-sm border rounded-xl px-4 py-2 cursor-pointer text-gray-600 hover:bg-gray-50 transition">
-                    📁 Subir logo
-                    <input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                            const file = e.target.files?.[0];
-                            if (file) subirLogo(file);
-                        }}
-                    />
-                </label>
 
-                {form.logo_url && (
-                    <button
-                        type="button"
-                        onClick={() => setForm({ ...form, logo_url: "" })}
-                        className="text-xs text-red-500 mt-2 underline"
-                    >
-                        Quitar logo
-                    </button>
-                )}
+            {/* ── Header ── */}
+            <div className="mb-6">
+                <h1 className="text-xl font-bold text-gray-900">Perfil de la tienda</h1>
+                <p className="text-xs text-gray-400 mt-0.5">Información que aparece en el catálogo y los tickets</p>
             </div>
 
-            {/* Campos */}
-            <div className="space-y-3">
+            {/* ── Logo ── */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-4 mb-4s">
+                <p className="text-xs text-gray-500 font-medium mb-4">Logo de la tienda</p>
+
+                <div className="flex items-center gap-3">
+                    {/* Preview */}
+                    <div className="w-20 h-20 rounded-2xl border border-gray-100 overflow-hidden bg-gray-50 flex items-center justify-center flex-shrink-0">
+                        {form.logo_url ? (
+                            <img src={form.logo_url} alt="Logo"
+                                className="w-full h-full object-contain"
+                                onError={(e) => (e.target.style.display = "none")} />
+                        ) : (
+                            <Store size={28} className="text-gray-300" />
+                        )}
+                    </div>
+
+                    {/* Acciones */}
+                    <div className="flex-1 min-w-0">
+                        <label className={`flex items-center gap-2 w-full min-w-0 border border-dashed border-gray-200 rounded-xl px-4 py-3 cursor-pointer text-sm text-gray-500 hover:bg-gray-50 transition ${uploading ? "opacity-50" : ""}`}>
+                            <Upload size={14} />
+                            {uploading ? "Subiendo..." : "Subir logo"}
+                            <input type="file" accept="image/*" className="hidden" disabled={uploading}
+                                onChange={(e) => { const f = e.target.files?.[0]; if (f) subirLogo(f); }} />
+                        </label>
+
+                        {form.logo_url && (
+                            <button type="button" onClick={() => setForm({ ...form, logo_url: "" })}
+                                className="text-xs text-red-500 mt-2 hover:underline">
+                                Quitar logo
+                            </button>
+                        )}
+                    </div>
+                </div>
+            </div>
+
+            {/* ── Datos de la tienda ── */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-4 space-y-4">
+                <p className="text-xs text-gray-500 font-medium">Información de la tienda</p>
+
                 <div>
-                    <label className="text-sm text-gray-500 mb-1 block">
-                        Nombre de la tienda *
-                    </label>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Nombre de la tienda *</label>
                     <input
-                        className="w-full border rounded-xl p-3"
-                        placeholder="Ej: Farmacia Don Juan"
+                        className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                        placeholder="Ej: Retro Mini Fragancias"
                         value={form.nombre_tienda}
                         onChange={(e) => setForm({ ...form, nombre_tienda: e.target.value })}
                     />
                 </div>
 
                 <div>
-                    <label className="text-sm text-gray-500 mb-1 block">
-                        Teléfono / WhatsApp
-                    </label>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Teléfono / WhatsApp</label>
                     <input
-                        className="w-full border rounded-xl p-3"
-                        placeholder="Ej: 18091234567"
+                        className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                        placeholder="18091234567"
                         inputMode="tel"
                         value={form.telefono}
                         onChange={(e) => setForm({ ...form, telefono: e.target.value })}
                     />
-                    <p className="text-xs text-gray-400 mt-1">
-                        Sin espacios ni +. Ej: 18091234567
+                    <p className="text-[10px] text-gray-400 mt-1">
+                        Sin espacios ni + — se usa para el botón de WhatsApp del catálogo
                     </p>
                 </div>
             </div>
 
-            {/* Mensaje */}
+            {/* ── Link del catálogo ── */}
+            {userId && (
+                <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-4">
+                    <div className="flex items-center gap-2 mb-3">
+                        <Link size={14} className="text-gray-400" />
+                        <p className="text-xs text-gray-500 font-medium">Link de tu catálogo público</p>
+                    </div>
+
+                    {/* Preview del catálogo */}
+                    <div className="bg-gray-50 rounded-xl p-3 mb-3 flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg overflow-hidden bg-white border border-gray-100 flex items-center justify-center flex-shrink-0">
+                            {form.logo_url ? (
+                                <img src={form.logo_url} alt="logo" className="w-full h-full object-contain" />
+                            ) : (
+                                <Store size={14} className="text-gray-300" />
+                            )}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                            <p className="text-xs font-medium text-gray-900 truncate">
+                                {form.nombre_tienda || "Mi Tienda"}
+                            </p>
+                            <p className="text-[10px] text-gray-400 truncate">{catalogoUrl}</p>
+                        </div>
+                    </div>
+
+                    <div className="flex gap-2 min-w-0">
+                        <input readOnly
+                            className="flex-1 min-w-0 border border-gray-100 rounded-xl p-2.5 text-xs bg-gray-50 text-gray-500 overflow-hidden truncate"
+                            value={catalogoUrl}
+                        />
+                        <button onClick={copiarLink}
+                            className={`flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-semibold border transition ${copied
+                                ? "bg-green-50 border-green-100 text-green-700"
+                                : "border-gray-100 text-gray-600 hover:bg-gray-50"
+                                }`}>
+                            {copied ? <Check size={12} /> : <Copy size={12} />}
+                            {copied ? "Copiado" : "Copiar"}
+                        </button>
+                    </div>
+
+                    <button
+                        onClick={() => window.open(catalogoUrl, "_blank")}
+                        className="w-full mt-2 py-2.5 border border-gray-100 rounded-xl text-xs text-gray-500 hover:bg-gray-50 transition"
+                    >
+                        Ver catálogo →
+                    </button>
+                </div>
+            )}
+
+            {/* ── Mensaje ── */}
             {msg && (
-                <div className={`mt-4 text-sm px-3 py-2 rounded-xl ${msgType === "success"
-                    ? "bg-green-50 text-green-700"
-                    : "bg-red-50 text-red-600"
+                <div className={`mb-4 text-xs px-3 py-2.5 rounded-xl ${msgType === "success" ? "bg-green-50 text-green-700 border border-green-100" : "bg-red-50 text-red-600 border border-red-100"
                     }`}>
                     {msg}
                 </div>
             )}
-            {userId && (
-                <div className="mt-6 p-4 border rounded-xl bg-gray-50">
-                    <p className="text-sm font-semibold mb-1">🔗 Link de tu catálogo</p>
-                    <p className="text-xs text-gray-500 mb-2">
-                        Comparte este link con tus clientes
-                    </p>
-                    <div className="flex gap-2">
-                        <input
-                            readOnly
-                            className="flex-1 border rounded-xl p-3 text-xs bg-white"
-                            value={`${window.location.origin}/catalogo/${userId}`}
-                        />
-                        <button
-                            type="button"
-                            onClick={() => {
-                                navigator.clipboard.writeText(
-                                    `${window.location.origin}/catalogo/${userId}`
-                                );
-                                setMsg("Link copiado.");
-                                setMsgType("success");
-                            }}
-                            className="border rounded-xl px-4 py-2 text-sm font-semibold"
-                        >
-                            Copiar
-                        </button>
-                    </div>
-                </div>
-            )}
 
-            {/* Botón guardar */}
-            <button
-                onClick={handleGuardar}
-                disabled={saving}
-                className="w-full mt-6 bg-black text-white rounded-xl p-4 font-semibold disabled:opacity-50"
-            >
+            {/* ── Botón guardar ── */}
+            <button onClick={handleGuardar} disabled={saving}
+                className="w-full bg-gray-900 text-white rounded-xl p-4 text-sm font-semibold disabled:opacity-50 transition">
                 {saving ? "Guardando..." : "Guardar perfil"}
             </button>
         </div>
