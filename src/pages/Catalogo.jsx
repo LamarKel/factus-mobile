@@ -332,7 +332,7 @@ export default function Catalogo() {
                             <h1 className="text-lg font-bold text-gray-900 leading-tight">
                                 {perfil?.nombre_tienda ?? "Mi Tienda"}
                             </h1>
-                            <p className="text-xs text-gray-400">Catálogo de perfumes</p>
+                            <p className="text-xs text-gray-400">Catálogo</p>
                         </div>
                     </div>
                 </div>
@@ -342,7 +342,7 @@ export default function Catalogo() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
                     <input
                         className="w-full bg-gray-100 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none"
-                        placeholder="Buscar perfume o marca..."
+                        placeholder="Buscar  marca..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />

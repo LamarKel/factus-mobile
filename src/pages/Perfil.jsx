@@ -90,7 +90,7 @@ export default function Perfil() {
     );
 
     return (
-        <div className="p-4 lg:p-6 max-w-xl mx-auto pb-24">
+        <div className="w-full p-4 lg:p-6 lg:max-w-xl lg:mx-auto pb-24">
 
 
 
