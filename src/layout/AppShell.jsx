@@ -15,6 +15,7 @@ import {
   Menu,
   X,
   ChevronRight,
+  BarChart2,
 } from "lucide-react";
 
 const links = [
@@ -26,6 +27,7 @@ const links = [
   { to: "/productos", label: "Productos", Icon: Package },
   { to: "/compras", label: "Compras", Icon: ShoppingBag },
   { to: "/descuentos", label: "Descuentos", Icon: Percent },
+  { to: "/reportes", label: "Reportes", Icon: BarChart2 },
   { to: "/perfil", label: "Perfil", Icon: UserCircle },
 ];
 
