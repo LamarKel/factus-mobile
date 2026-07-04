@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
+import { Package } from "lucide-react";
 
 export default function Catalogo() {
     const { userId } = useParams();
@@ -25,7 +26,7 @@ export default function Catalogo() {
 
             const { data: productosData, error } = await supabase
                 .from("products")
-                .select("nombre, codigo, unidad_medida, precio_venta, control_inventario, cantidad, imagen_url, categoria, ventas")
+                .select("nombre, codigo, unidad_medida, precio_venta, precio_oferta, oferta_activa, control_inventario, cantidad, imagen_url, categoria, ventas")
                 .eq("user_id", userId)
                 .order("created_at", { ascending: false });
 
@@ -81,7 +82,10 @@ export default function Catalogo() {
     const itemsEnCarrito = Object.values(carrito).reduce((a, b) => a + b, 0);
     const productosEnCarrito = productos.filter((p) => carrito[p.codigo] > 0);
     const total = productosEnCarrito.reduce(
-        (sum, p) => sum + Number(p.precio_venta) * carrito[p.codigo], 0
+        (sum, p) => {
+            const precio = p.oferta_activa && p.precio_oferta ? Number(p.precio_oferta) : Number(p.precio_venta);
+            return sum + precio * carrito[p.codigo];
+        }, 0
     );
 
     const enviarPorWhatsApp = () => {
@@ -107,40 +111,35 @@ export default function Catalogo() {
     const ProductCard = ({ p }) => {
         const cantEnCarrito = carrito[p.codigo] ?? 0;
         const agotado = p.control_inventario && (p.cantidad ?? 0) <= 0;
-        const [hovered, setHovered] = useState(false);
+        const tieneOferta = p.oferta_activa && p.precio_oferta;
+        const precioMostrar = tieneOferta ? Number(p.precio_oferta) : Number(p.precio_venta);
 
         return (
-            <div
-                onMouseEnter={() => setHovered(true)}   // 👈 nuevo
-                onMouseLeave={() => setHovered(false)}  // 👈 nuevo
-                className={`flex-shrink-0 w-44 rounded-2xl overflow-hidden shadow-sm border flex flex-col transition-all duration-200 ${hovered
-                    ? "border-amber-400 bg-amber-50 shadow-amber-200 shadow-md"  // 👈 dorado al hover
-                    : "border-gray-100 bg-white"
-                    }`}>
+            <div className="flex-shrink-0 w-44 rounded-2xl overflow-hidden shadow-sm border border-gray-100 bg-white flex flex-col transition-all duration-200 hover:border-gray-300 hover:shadow-md active:border-gray-400">
                 {/* Imagen */}
                 <div className="relative w-full h-44 bg-gray-50">
                     {p.imagen_url ? (
-                        <img
-                            src={p.imagen_url}
-                            alt={p.nombre}
-                            className="w-full h-full object-cover"
-                            onError={(e) => { e.target.style.display = "none"; }}
-                        />
+                        <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-cover"
+                            onError={(e) => { e.target.style.display = "none"; }} />
                     ) : (
-                        <div className="w-full h-full flex items-center justify-center text-4xl">
-                            🌸
+                        <div className="w-full h-full flex items-center justify-center">
+                            <Package size={32} className="text-gray-300" />
                         </div>
                     )}
+
                     {/* Badges */}
                     {agotado && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
-                            <span className="bg-white text-xs font-bold px-3 py-1 rounded-full text-gray-800">
-                                Agotado
-                            </span>
+                            <span className="bg-white text-xs font-bold px-3 py-1 rounded-full text-gray-800">Agotado</span>
                         </div>
                     )}
-                    {!agotado && (p.ventas ?? 0) > 0 && (
-                        <span className="absolute top-2 left-2 bg-amber-400 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                    {!agotado && tieneOferta && (
+                        <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                            Oferta
+                        </span>
+                    )}
+                    {!agotado && !tieneOferta && (p.ventas ?? 0) > 0 && (
+                        <span className="absolute top-2 left-2 bg-gray-800 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                             ⭐ Top
                         </span>
                     )}
@@ -150,12 +149,25 @@ export default function Catalogo() {
                 <div className="p-3 flex flex-col gap-1 flex-1">
                     <p className="text-xs text-gray-400 uppercase tracking-wide">{p.categoria ?? ""}</p>
                     <p className="font-semibold text-sm leading-tight text-gray-900 line-clamp-2">{p.nombre}</p>
-                    {p.unidad_medida && (
-                        <p className="text-xs text-gray-400">{p.unidad_medida}</p>
-                    )}
-                    <p className="text-base font-bold text-gray-900 mt-auto">
-                        $ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
-                    </p>
+                    {p.unidad_medida && <p className="text-xs text-gray-400">{p.unidad_medida}</p>}
+
+                    {/* Precio */}
+                    <div className="mt-auto pt-1">
+                        {tieneOferta ? (
+                            <>
+                                <p className="text-xs text-gray-400 line-through">
+                                    RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                                </p>
+                                <p className="text-base font-bold text-red-600">
+                                    RD$ {Number(p.precio_oferta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                                </p>
+                            </>
+                        ) : (
+                            <p className="text-base font-bold text-gray-900">
+                                RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                            </p>
+                        )}
+                    </div>
 
                     {/* Botón */}
                     {agotado ? (
@@ -163,11 +175,8 @@ export default function Catalogo() {
                             Agotado
                         </button>
                     ) : cantEnCarrito === 0 ? (
-                        <button
-                            onClick={() => agregarAlCarrito(p)}
-                            className={`mt-2 w-full rounded-xl py-2 text-xs font-semibold transition-all duration-200 ${hovered ? "bg-amber-500 text-white" : "bg-gray-900 text-white"
-                                }`}
-                        >
+                        <button onClick={() => agregarAlCarrito(p)}
+                            className="mt-2 w-full bg-gray-900 text-white rounded-xl py-2 text-xs font-semibold hover:bg-gray-700 active:bg-amber-500 transition">
                             + Agregar
                         </button>
                     ) : (
@@ -201,7 +210,9 @@ export default function Catalogo() {
                                     <img src={p.imagen_url} alt={p.nombre} className="w-full h-full object-cover"
                                         onError={(e) => { e.target.style.display = "none"; }} />
                                 ) : (
-                                    <div className="w-full h-full flex items-center justify-center text-4xl">🌸</div>
+                                    <div className="w-full h-full flex items-center justify-center">
+                                        <Package size={32} className="text-gray-300" />
+                                    </div>
                                 )}
                                 {p.control_inventario && (p.cantidad ?? 0) <= 0 && (
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
@@ -342,7 +353,7 @@ export default function Catalogo() {
                     <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 text-sm">🔍</span>
                     <input
                         className="w-full bg-gray-100 rounded-xl pl-9 pr-4 py-2.5 text-sm outline-none"
-                        placeholder="Buscar  marca..."
+                        placeholder="Buscar  Producto..."
                         value={search}
                         onChange={(e) => setSearch(e.target.value)}
                     />
@@ -454,7 +465,9 @@ export default function Catalogo() {
                                             <div className="flex-1 min-w-0">
                                                 <p className="font-semibold text-sm truncate">{p.nombre}</p>
                                                 <p className="text-xs text-gray-400">{p.categoria}</p>
-                                                <p className="text-xs text-gray-500">$ {Number(p.precio_venta).toFixed(2)} c/u</p>
+                                                <p className="text-xs text-gray-500">
+                                                    RD$ {(p.oferta_activa && p.precio_oferta ? Number(p.precio_oferta) : Number(p.precio_venta)).toFixed(2)} c/u
+                                                </p>
                                             </div>
                                             <div className="flex items-center gap-2">
                                                 <button onClick={() => cambiarCantidad(p.codigo, -1)}
@@ -464,7 +477,7 @@ export default function Catalogo() {
                                                     className="w-7 h-7 border rounded-full font-bold flex items-center justify-center">+</button>
                                             </div>
                                             <p className="text-sm font-bold w-20 text-right">
-                                                $ {(Number(p.precio_venta) * carrito[p.codigo]).toFixed(2)}
+                                                RD$ {((p.oferta_activa && p.precio_oferta ? Number(p.precio_oferta) : Number(p.precio_venta)) * carrito[p.codigo]).toFixed(2)}
                                             </p>
                                         </div>
                                     ))}
