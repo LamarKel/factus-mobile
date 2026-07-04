@@ -20,7 +20,7 @@ import {
 
 const links = [
   { to: "/", label: "Dashboard", Icon: LayoutDashboard },
-  { to: "/facturar", label: "Facturar", Icon: FilePlus2 },
+  { to: "/facturar", label: "Facturacion", Icon: FilePlus2 },
   { to: "/facturas", label: "Facturas", Icon: Files },
   { to: "/abonos", label: "Abonos", Icon: Wallet },
   { to: "/clientes", label: "Clientes", Icon: Users },
