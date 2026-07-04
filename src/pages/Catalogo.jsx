@@ -219,13 +219,30 @@ export default function Catalogo() {
                                         <span className="bg-white text-xs font-bold px-3 py-1 rounded-full">Agotado</span>
                                     </div>
                                 )}
+                                {p.oferta_activa && p.precio_oferta && !(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
+                                    <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
+                                        Oferta
+                                    </span>
+                                )}
                             </div>
                             <div className="p-3 flex flex-col gap-1 flex-1">
                                 <p className="font-semibold text-sm leading-tight">{p.nombre}</p>
                                 {p.unidad_medida && <p className="text-xs text-gray-400">{p.unidad_medida}</p>}
-                                <p className="text-base font-bold mt-auto">
-                                    $ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
-                                </p>
+
+                                {p.oferta_activa && p.precio_oferta ? (
+                                    <>
+                                        <p className="text-xs text-gray-400 line-through mt-auto">
+                                            RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                                        </p>
+                                        <p className="text-base font-bold text-red-600">
+                                            RD$ {Number(p.precio_oferta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                                        </p>
+                                    </>
+                                ) : (
+                                    <p className="text-base font-bold mt-auto">
+                                        RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+                                    </p>
+                                )}
                                 {!(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
                                     carrito[p.codigo] > 0 ? (
                                         <div className="mt-2 flex items-center justify-between border rounded-xl overflow-hidden">
