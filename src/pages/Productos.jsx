@@ -8,6 +8,7 @@ const emptyForm = {
   nombre: "", codigo: "", referencia: "", unidad_medida: "",
   precio_venta: "", precio_compra: "", control_inventario: false,
   cantidad: "", imagen_url: "", categoria: "",
+  oferta_activa: false, precio_oferta: "",
 };
 
 export default function Productos() {
@@ -69,6 +70,8 @@ export default function Productos() {
       precio_compra: String(p.precio_compra ?? ""), control_inventario: !!p.control_inventario,
       cantidad: p.cantidad == null ? "" : String(p.cantidad),
       imagen_url: p.imagen_url ?? "", categoria: p.categoria ?? "",
+      oferta_activa: !!p.oferta_activa,
+      precio_oferta: p.precio_oferta == null ? "" : String(p.precio_oferta),
     });
     setShowForm(true);
   };
@@ -105,6 +108,8 @@ export default function Productos() {
       precio_venta: pv, precio_compra: pc, control_inventario: !!form.control_inventario,
       cantidad: cantidadValue, imagen_url: form.imagen_url.trim() || null,
       categoria: form.categoria.trim() || null,
+      oferta_activa: !!form.oferta_activa,
+      precio_oferta: form.oferta_activa && form.precio_oferta !== "" ? Number(form.precio_oferta) : null,
     };
 
     const res = editing
@@ -178,6 +183,7 @@ export default function Productos() {
                   <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Código</th>
                   <th className="text-left px-4 py-3 text-xs text-gray-400 font-medium">Marca</th>
                   <th className="text-right px-4 py-3 text-xs text-gray-400 font-medium">Venta</th>
+                  <th className="text-center px-4 py-3 text-xs text-gray-400 font-medium">Oferta</th>
                   <th className="text-right px-4 py-3 text-xs text-gray-400 font-medium">Compra</th>
                   <th className="text-center px-4 py-3 text-xs text-gray-400 font-medium">Stock</th>
                   <th className="px-4 py-3"></th>
@@ -203,6 +209,15 @@ export default function Productos() {
                     <td className="px-4 py-3 text-xs text-gray-500">{p.categoria || "—"}</td>
                     <td className="px-4 py-3 text-right font-semibold text-gray-900 text-xs">
                       RD$ {Number(p.precio_venta).toFixed(2)}
+                    </td>
+                    <td className="px-4 py-3 text-center">
+                      {p.oferta_activa ? (
+                        <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-50 text-red-600">
+                          RD$ {Number(p.precio_oferta).toFixed(2)}
+                        </span>
+                      ) : (
+                        <span className="text-xs text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 text-right text-xs text-gray-500">
                       RD$ {Number(p.precio_compra).toFixed(2)}
@@ -264,6 +279,11 @@ export default function Productos() {
                   <p className="text-sm font-bold text-gray-900 mt-1">
                     RD$ {Number(p.precio_venta).toFixed(2)}
                   </p>
+                  {p.oferta_activa && (
+                    <span className="absolute top-2 left-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-500 text-white">
+                      Oferta
+                    </span>
+                  )}
                   <p className="text-[10px] text-gray-400">
                     Compra: RD$ {Number(p.precio_compra).toFixed(2)}
                   </p>
@@ -407,6 +427,33 @@ export default function Productos() {
                     onChange={(e) => setForm({ ...form, precio_compra: e.target.value })} required />
                 </div>
               </div>
+
+              {/* Oferta */}
+              <label className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl cursor-pointer">
+                <input type="checkbox" checked={form.oferta_activa}
+                  onChange={(e) => setForm({ ...form, oferta_activa: e.target.checked, precio_oferta: e.target.checked ? form.precio_oferta : "" })} />
+                <div>
+                  <p className="text-sm text-gray-900 font-medium">Producto en oferta</p>
+                  <p className="text-xs text-gray-400">Muestra precio especial en el catálogo</p>
+                </div>
+              </label>
+
+              {form.oferta_activa && (
+                <div>
+                  <label className="text-xs text-gray-500 mb-1 block">Precio de oferta *</label>
+                  <input
+                    className="w-full border border-red-200 rounded-xl p-3 text-sm focus:outline-none focus:border-red-400 bg-red-50"
+                    placeholder="0.00" inputMode="decimal"
+                    value={form.precio_oferta}
+                    onChange={(e) => setForm({ ...form, precio_oferta: e.target.value })}
+                  />
+                  {form.precio_oferta && form.precio_venta && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Descuento: {(((Number(form.precio_venta) - Number(form.precio_oferta)) / Number(form.precio_venta)) * 100).toFixed(0)}% off
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Inventario */}
               <label className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl cursor-pointer">
