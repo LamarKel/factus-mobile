@@ -236,23 +236,21 @@ export default function Facturar() {
   };
   const toggleDescItem = () => {
     if (!modoDescItem && descuentoSeleccionado) {
-      // Distribuye el descuento general a cada producto
       const nuevosDesc = {};
       if (descuentoSeleccionado.tipo === "porcentaje") {
-        // Si es porcentaje, aplica ese mismo % a cada item
+        // El mismo % a cada artículo
         cart.forEach((it) => {
           nuevosDesc[it.product_id] = descuentoSeleccionado.valor;
         });
       } else {
-        // Si es monto fijo, lo distribuye proporcionalmente entre los items
+        // El mismo monto fijo a cada artículo — lo convierte a % según el precio de cada uno
         cart.forEach((it) => {
-          const proporcion = (it.qty * Number(it.precio_venta)) / subtotalBruto;
-          const descItem = (proporcion * descuentoSeleccionado.valor / (it.qty * Number(it.precio_venta))) * 100;
-          nuevosDesc[it.product_id] = Math.round(descItem * 100) / 100;
+          const pct = (descuentoSeleccionado.valor / Number(it.precio_venta)) * 100;
+          nuevosDesc[it.product_id] = Math.round(pct * 100) / 100;
         });
       }
       setDescPorItem(nuevosDesc);
-      setDiscountId(""); // 👈 quita el descuento general porque ya está distribuido
+      setDiscountId("");
     } else {
       setDescPorItem({});
     }
