@@ -234,7 +234,30 @@ export default function Facturar() {
     if (!producto) { alert(`No se encontró producto con código: ${codigo}`); return; }
     addToCart(producto);
   };
-
+  const toggleDescItem = () => {
+    if (!modoDescItem && descuentoSeleccionado) {
+      // Distribuye el descuento general a cada producto
+      const nuevosDesc = {};
+      if (descuentoSeleccionado.tipo === "porcentaje") {
+        // Si es porcentaje, aplica ese mismo % a cada item
+        cart.forEach((it) => {
+          nuevosDesc[it.product_id] = descuentoSeleccionado.valor;
+        });
+      } else {
+        // Si es monto fijo, lo distribuye proporcionalmente entre los items
+        cart.forEach((it) => {
+          const proporcion = (it.qty * Number(it.precio_venta)) / subtotalBruto;
+          const descItem = (proporcion * descuentoSeleccionado.valor / (it.qty * Number(it.precio_venta))) * 100;
+          nuevosDesc[it.product_id] = Math.round(descItem * 100) / 100;
+        });
+      }
+      setDescPorItem(nuevosDesc);
+      setDiscountId(""); // 👈 quita el descuento general porque ya está distribuido
+    } else {
+      setDescPorItem({});
+    }
+    setModoDescItem((v) => !v);
+  };
   const createInvoice = async () => {
     setMsg("");
     if (cart.length === 0) return setMsg("Agrega al menos un producto.");
@@ -327,13 +350,18 @@ export default function Facturar() {
         {/* 👇 Toggle descuento por artículo */}
         {cart.length > 0 && (
           <button
-            onClick={() => setModoDescItem((v) => !v)}
+            onClick={toggleDescItem}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-medium transition ${modoDescItem ? "bg-amber-50 border-amber-200 text-amber-700" : "border-gray-100 text-gray-600"
               }`}
           >
             <div className="flex items-center gap-2">
               <Tag size={13} />
               Descuento por artículo
+              {descuentoSeleccionado && !modoDescItem && (
+                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                  Usa {descuentoSeleccionado.nombre}
+                </span>
+              )}
             </div>
             <div className={`w-8 h-4 rounded-full transition-colors ${modoDescItem ? "bg-amber-400" : "bg-gray-200"}`}>
               <div className={`w-3 h-3 bg-white rounded-full mt-0.5 transition-transform ${modoDescItem ? "translate-x-4" : "translate-x-0.5"}`} />
