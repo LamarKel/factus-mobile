@@ -134,14 +134,16 @@ export default function Facturar() {
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // 👇 Nuevos estados para descuento por artículo
   const [modoDescItem, setModoDescItem] = useState(false);
-  const [descPorItem, setDescPorItem] = useState({}); // { product_id: pct }
+  const [descPorItem, setDescPorItem] = useState({});
 
   const [showCarrito, setShowCarrito] = useState(false);
   const [showTicket, setShowTicket] = useState(false);
   const [facturaImpresa, setFacturaImpresa] = useState(null);
   const [showScanner, setShowScanner] = useState(false);
+
+  const [showCambio, setShowCambio] = useState(false);
+  const [montoCobrado, setMontoCobrado] = useState("");
 
   const ticketRef = useRef();
 
@@ -232,7 +234,28 @@ export default function Facturar() {
     if (!producto) { alert(`No se encontró producto con código: ${codigo}`); return; }
     addToCart(producto);
   };
-
+  const toggleDescItem = () => {
+    if (!modoDescItem && descuentoSeleccionado) {
+      const nuevosDesc = {};
+      if (descuentoSeleccionado.tipo === "porcentaje") {
+        // El mismo % a cada artículo
+        cart.forEach((it) => {
+          nuevosDesc[it.product_id] = descuentoSeleccionado.valor;
+        });
+      } else {
+        // El mismo monto fijo a cada artículo — lo convierte a % según el precio de cada uno
+        cart.forEach((it) => {
+          const pct = (descuentoSeleccionado.valor / Number(it.precio_venta)) * 100;
+          nuevosDesc[it.product_id] = Math.round(pct * 100) / 100;
+        });
+      }
+      setDescPorItem(nuevosDesc);
+      setDiscountId("");
+    } else {
+      setDescPorItem({});
+    }
+    setModoDescItem((v) => !v);
+  };
   const createInvoice = async () => {
     setMsg("");
     if (cart.length === 0) return setMsg("Agrega al menos un producto.");
@@ -325,13 +348,18 @@ export default function Facturar() {
         {/* 👇 Toggle descuento por artículo */}
         {cart.length > 0 && (
           <button
-            onClick={() => setModoDescItem((v) => !v)}
+            onClick={toggleDescItem}
             className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl border text-xs font-medium transition ${modoDescItem ? "bg-amber-50 border-amber-200 text-amber-700" : "border-gray-100 text-gray-600"
               }`}
           >
             <div className="flex items-center gap-2">
               <Tag size={13} />
               Descuento por artículo
+              {descuentoSeleccionado && !modoDescItem && (
+                <span className="text-[10px] bg-gray-100 text-gray-500 px-1.5 py-0.5 rounded-full">
+                  Usa {descuentoSeleccionado.nombre}
+                </span>
+              )}
             </div>
             <div className={`w-8 h-4 rounded-full transition-colors ${modoDescItem ? "bg-amber-400" : "bg-gray-200"}`}>
               <div className={`w-3 h-3 bg-white rounded-full mt-0.5 transition-transform ${modoDescItem ? "translate-x-4" : "translate-x-0.5"}`} />
@@ -432,8 +460,18 @@ export default function Facturar() {
 
       {msg && <p className="text-xs text-red-500 mt-2">{msg}</p>}
 
-      <button disabled={saving || cart.length === 0} onClick={createInvoice}
-        className="mt-3 w-full bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50 transition">
+      <button
+        disabled={saving || cart.length === 0}
+        onClick={() => {
+          if (tipoPago === "cash") {
+            setMontoCobrado("");
+            setShowCambio(true);
+          } else {
+            createInvoice();
+          }
+        }}
+        className="mt-3 w-full bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50 transition"
+      >
         {saving ? "Guardando..." : `Guardar factura · RD$ ${totalFinal.toFixed(2)}`}
       </button>
     </div>
@@ -553,6 +591,116 @@ export default function Facturar() {
         </div>
       )}
 
+      {/* ── MODAL CAMBIO/VUELTO ── */}
+      {showCambio && (() => {
+        const DENOMINACIONES = [2000, 1000, 500, 200, 100, 50, 25, 10, 5, 1];
+        const monto = parseFloat(montoCobrado) || 0;
+        const vuelto = Math.round((monto - totalFinal) * 100) / 100;
+
+        const desglose = [];
+        if (vuelto > 0) {
+          let resto = vuelto;
+          for (const den of DENOMINACIONES) {
+            const qty = Math.floor(resto / den);
+            if (qty > 0) {
+              desglose.push({ qty, den });
+              resto = Math.round((resto - qty * den) * 100) / 100;
+            }
+          }
+        }
+
+        return (
+          <div className="fixed inset-0 bg-black/40 flex items-end lg:items-center justify-center z-50">
+            <div className="bg-white w-full lg:w-[380px] lg:rounded-3xl rounded-t-3xl overflow-hidden">
+
+              {/* Header */}
+              <div className="bg-gray-900 px-5 py-4">
+                <p className="text-xs text-gray-400 mb-1">Total a cobrar</p>
+                <p className="text-3xl font-bold text-white">RD$ {totalFinal.toFixed(2)}</p>
+              </div>
+
+              <div className="p-5">
+                {/* Input monto */}
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-2">Monto recibido</p>
+                  <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2">
+                    <span className="text-sm text-gray-400">RD$</span>
+                    <input
+                      autoFocus
+                      type="number"
+                      inputMode="decimal"
+                      placeholder="0.00"
+                      value={montoCobrado}
+                      onChange={(e) => setMontoCobrado(e.target.value)}
+                      className="flex-1 text-right text-xl font-semibold focus:outline-none bg-transparent"
+                    />
+                  </div>
+                </div>
+
+                {/* Atajos */}
+                <div className="grid grid-cols-3 gap-2 mb-4">
+                  {[400, 500, 1000, 2000, 5000].map((v) => (
+                    <button key={v} onClick={() => setMontoCobrado(String(v))}
+                      className="py-2 border border-gray-100 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50">
+                      RD$ {v.toLocaleString()}
+                    </button>
+                  ))}
+                  <button onClick={() => setMontoCobrado(String(totalFinal.toFixed(2)))}
+                    className="py-2 border border-gray-100 rounded-xl text-xs font-medium text-gray-600 hover:bg-gray-50">
+                    Exacto
+                  </button>
+                </div>
+
+                <div className="border-t border-gray-100 pt-4 mb-4">
+                  <p className="text-xs text-gray-500 mb-1">Vuelto</p>
+                  {monto <= 0 ? (
+                    <p className="text-3xl font-bold text-gray-300">—</p>
+                  ) : vuelto < 0 ? (
+                    <>
+                      <p className="text-3xl font-bold text-red-500">- RD$ {Math.abs(vuelto).toFixed(2)}</p>
+                      <p className="text-xs text-red-500 mt-1">Monto insuficiente</p>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-3xl font-bold text-green-600">
+                        {vuelto === 0 ? "Sin vuelto" : `RD$ ${vuelto.toFixed(2)}`}
+                      </p>
+                      {desglose.length > 0 && (
+                        <div className="mt-3">
+                          <p className="text-xs text-gray-400 mb-2">Desglose sugerido</p>
+                          <div className="flex flex-wrap gap-2">
+                            {desglose.map(({ qty, den }) => (
+                              <div key={den} className="flex items-center gap-1.5 bg-gray-50 border border-gray-100 rounded-lg px-2.5 py-1.5">
+                                <span className="text-xs font-semibold text-gray-900">{qty}×</span>
+                                <span className="text-xs text-gray-500">RD$ {den}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+
+                {/* Botones */}
+                <button
+                  disabled={saving || monto < totalFinal}
+                  onClick={() => { setShowCambio(false); createInvoice(); }}
+                  className="w-full bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-40 transition mb-2"
+                >
+                  {saving ? "Guardando..." : "Confirmar cobro"}
+                </button>
+                <button
+                  onClick={() => { setShowCambio(false); setMontoCobrado(""); }}
+                  className="w-full py-2.5 text-sm text-gray-400"
+                >
+                  Cancelar
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       {showScanner && <ScannerModal onScan={handleScan} onClose={() => setShowScanner(false)} />}
     </div>
   );
