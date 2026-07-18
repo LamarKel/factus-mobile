@@ -3,6 +3,14 @@ import { useParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import { Package } from "lucide-react";
 
+// Orden de estado: disponibles, luego próximamente, luego agotados
+const ordenEstado = (p) => {
+    if (p.proximamente) return 1;
+    if (p.control_inventario && (p.cantidad ?? 0) <= 0) return 2;
+    return 0;
+};
+const ordenarPorEstado = (arr) => [...arr].sort((a, b) => ordenEstado(a) - ordenEstado(b));
+
 export default function Catalogo() {
     const { userId } = useParams();
     const [productos, setProductos] = useState([]);
@@ -26,7 +34,7 @@ export default function Catalogo() {
 
             const { data: productosData, error } = await supabase
                 .from("products")
-                .select("nombre, codigo, unidad_medida, precio_venta, precio_oferta, oferta_activa, control_inventario, cantidad, imagen_url, categoria, ventas")
+                .select("nombre, codigo, unidad_medida, precio_venta, precio_oferta, oferta_activa, control_inventario, cantidad, imagen_url, categoria, ventas, proximamente")
                 .eq("user_id", userId)
                 .order("created_at", { ascending: false });
 
@@ -59,6 +67,7 @@ export default function Catalogo() {
             if (!grupos[cat]) grupos[cat] = [];
             grupos[cat].push(p);
         });
+        Object.keys(grupos).forEach((cat) => { grupos[cat] = ordenarPorEstado(grupos[cat]); });
         return grupos;
     }, [filtered]);
 
@@ -110,8 +119,9 @@ export default function Catalogo() {
     // ── Card de producto ─────────────────────────────
     const ProductCard = ({ p }) => {
         const cantEnCarrito = carrito[p.codigo] ?? 0;
-        const agotado = p.control_inventario && (p.cantidad ?? 0) <= 0;
-        const tieneOferta = p.oferta_activa && p.precio_oferta;
+        const proximamente = !!p.proximamente;
+        const agotado = !proximamente && p.control_inventario && (p.cantidad ?? 0) <= 0;
+        const tieneOferta = !proximamente && p.oferta_activa && p.precio_oferta;
         const precioMostrar = tieneOferta ? Number(p.precio_oferta) : Number(p.precio_venta);
 
         return (
@@ -128,17 +138,21 @@ export default function Catalogo() {
                     )}
 
                     {/* Badges */}
-                    {agotado && (
+                    {proximamente ? (
+                        <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                            <span className="bg-blue-500 text-xs font-bold px-3 py-1 rounded-full text-white">Próximamente</span>
+                        </div>
+                    ) : agotado && (
                         <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                             <span className="bg-white text-xs font-bold px-3 py-1 rounded-full text-gray-800">Agotado</span>
                         </div>
                     )}
-                    {!agotado && tieneOferta && (
+                    {!agotado && !proximamente && tieneOferta && (
                         <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                             Oferta
                         </span>
                     )}
-                    {!agotado && !tieneOferta && (p.ventas ?? 0) > 0 && (
+                    {!agotado && !proximamente && !tieneOferta && (p.ventas ?? 0) > 0 && (
                         <span className="absolute top-2 left-2 bg-gray-800 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                             ⭐ Top
                         </span>
@@ -170,7 +184,11 @@ export default function Catalogo() {
                     </div>
 
                     {/* Botón */}
-                    {agotado ? (
+                    {proximamente ? (
+                        <button disabled className="mt-2 w-full border rounded-xl py-2 text-xs text-blue-500 bg-blue-50">
+                            Próximamente
+                        </button>
+                    ) : agotado ? (
                         <button disabled className="mt-2 w-full border rounded-xl py-2 text-xs text-gray-400 bg-gray-50">
                             Agotado
                         </button>
@@ -214,12 +232,16 @@ export default function Catalogo() {
                                         <Package size={32} className="text-gray-300" />
                                     </div>
                                 )}
-                                {p.control_inventario && (p.cantidad ?? 0) <= 0 && (
+                                {p.proximamente ? (
+                                    <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
+                                        <span className="bg-blue-500 text-xs font-bold px-3 py-1 rounded-full text-white">Próximamente</span>
+                                    </div>
+                                ) : p.control_inventario && (p.cantidad ?? 0) <= 0 && (
                                     <div className="absolute inset-0 bg-black/40 flex items-center justify-center">
                                         <span className="bg-white text-xs font-bold px-3 py-1 rounded-full">Agotado</span>
                                     </div>
                                 )}
-                                {p.oferta_activa && p.precio_oferta && !(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
+                                {!p.proximamente && p.oferta_activa && p.precio_oferta && !(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
                                     <span className="absolute top-2 left-2 bg-red-500 text-white text-[10px] font-bold px-2 py-0.5 rounded-full">
                                         Oferta
                                     </span>
@@ -243,7 +265,11 @@ export default function Catalogo() {
                                         RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
                                     </p>
                                 )}
-                                {!(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
+                                {p.proximamente ? (
+                                    <button disabled className="mt-2 w-full border rounded-xl py-2 text-xs text-blue-500 bg-blue-50">
+                                        Próximamente
+                                    </button>
+                                ) : !(p.control_inventario && (p.cantidad ?? 0) <= 0) && (
                                     carrito[p.codigo] > 0 ? (
                                         <div className="mt-2 flex items-center justify-between border rounded-xl overflow-hidden">
                                             <button onClick={() => cambiarCantidad(p.codigo, -1)} className="px-3 py-1.5 text-base font-bold text-gray-600">−</button>
@@ -404,8 +430,7 @@ export default function Catalogo() {
             ) : categoriaActiva !== "Todo" ? (
                 // Vista de una sola categoría filtrada
                 <div className="p-4 grid grid-cols-2 gap-3">
-                    {filtered
-                        .filter((p) => (p.categoria || "Sin marca") === categoriaActiva)
+                    {ordenarPorEstado(filtered.filter((p) => (p.categoria || "Sin marca") === categoriaActiva))
                         .map((p) => <ProductCard key={p.codigo} p={p} />)}
                 </div>
             ) : (
