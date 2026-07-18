@@ -9,6 +9,7 @@ const emptyForm = {
   precio_venta: "", precio_compra: "", control_inventario: false,
   cantidad: "", imagen_url: "", categoria: "",
   oferta_activa: false, precio_oferta: "",
+  proximamente: false,
 };
 
 export default function Productos() {
@@ -72,6 +73,7 @@ export default function Productos() {
       imagen_url: p.imagen_url ?? "", categoria: p.categoria ?? "",
       oferta_activa: !!p.oferta_activa,
       precio_oferta: p.precio_oferta == null ? "" : String(p.precio_oferta),
+      proximamente: !!p.proximamente,
     });
     setShowForm(true);
   };
@@ -110,6 +112,7 @@ export default function Productos() {
       categoria: form.categoria.trim() || null,
       oferta_activa: !!form.oferta_activa,
       precio_oferta: form.oferta_activa && form.precio_oferta !== "" ? Number(form.precio_oferta) : null,
+      proximamente: !!form.proximamente,
     };
 
     const res = editing
@@ -203,6 +206,11 @@ export default function Productos() {
                           )}
                         </div>
                         <span className="font-medium text-gray-900">{p.nombre}</span>
+                        {p.proximamente && (
+                          <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-blue-50 text-blue-600">
+                            Próximamente
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-4 py-3 text-xs text-gray-400 font-mono">{p.codigo}</td>
@@ -262,7 +270,11 @@ export default function Productos() {
                   ) : (
                     <span className="text-3xl">🌸</span>
                   )}
-                  {p.control_inventario && (
+                  {p.proximamente ? (
+                    <span className="absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500 text-white">
+                      Próx.
+                    </span>
+                  ) : p.control_inventario && (
                     <span className={`absolute top-2 right-2 text-[10px] font-bold px-1.5 py-0.5 rounded-full ${(p.cantidad ?? 0) > 0 ? "bg-green-500 text-white" : "bg-red-500 text-white"
                       }`}>
                       {(p.cantidad ?? 0) > 0 ? p.cantidad : "Agot."}
@@ -454,6 +466,16 @@ export default function Productos() {
                   )}
                 </div>
               )}
+
+              {/* Próximamente */}
+              <label className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl cursor-pointer">
+                <input type="checkbox" checked={form.proximamente}
+                  onChange={(e) => setForm({ ...form, proximamente: e.target.checked })} />
+                <div>
+                  <p className="text-sm text-gray-900 font-medium">Producto próximamente</p>
+                  <p className="text-xs text-gray-400">Aún no está a la venta, se muestra como "Próximamente" en el catálogo</p>
+                </div>
+              </label>
 
               {/* Inventario */}
               <label className="flex items-center gap-3 p-3 border border-gray-100 rounded-xl cursor-pointer">
