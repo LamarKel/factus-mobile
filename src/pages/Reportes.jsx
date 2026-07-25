@@ -1,11 +1,97 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useReactToPrint } from "react-to-print";
+import ReceiptPrinterEncoder from "@point-of-sale/receipt-printer-encoder";
 import { supabase } from "../lib/supabase";
+import { tieneImpresoraConfigurada, imprimirBytes, cargarImagen } from "../lib/bluetoothPrinter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
-import { RefreshCw, Package, TrendingUp, AlertTriangle, DollarSign } from "lucide-react";
+import { RefreshCw, Package, TrendingUp, AlertTriangle, DollarSign, Wallet, Printer, Save } from "lucide-react";
 
 function fmtMoney(n) {
     return `RD$ ${Number(n ?? 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
+
+const PERIODO_LABEL = { hoy: "Hoy", semana: "Esta semana", mes: "Este mes" };
+
+// ── Ticket ESC/POS del cierre (para impresora Bluetooth) ──
+const buildEscPosCierre = async (data, perfil, periodoLabel) => {
+    const encoder = new ReceiptPrinterEncoder({ language: "esc-pos", columns: 32, feedBeforeCut: 4 });
+    encoder.initialize().align("center");
+
+    if (perfil?.logo_url) {
+        try {
+            const img = await cargarImagen(perfil.logo_url);
+            const lado = Math.round(Math.min(192, Math.max(img.naturalWidth, img.naturalHeight)) / 8) * 8;
+            encoder.image(img, lado, lado, "atkinson");
+        } catch {
+            // Sin logo si no carga.
+        }
+    }
+
+    if (perfil?.nombre_tienda) encoder.bold(true).line(perfil.nombre_tienda).bold(false);
+    if (perfil?.direccion) encoder.line(perfil.direccion);
+    encoder.bold(true).line("CIERRE DE CAJA").bold(false);
+    encoder.line(periodoLabel);
+    encoder.line(new Date().toLocaleString("es-DO"));
+    encoder.line("--------------------------------");
+    encoder.align("left");
+    const cant = (k) => (data.countTipo ? ` (${data.countTipo[k]})` : "");
+    const columnas = [{ width: 20, align: "left" }, { width: 12, align: "right" }];
+    encoder.table(columnas, [
+        [`Efectivo${cant("cash")}:`, fmtMoney(data.porTipo.cash)],
+        [`Credito${cant("credito")}:`, fmtMoney(data.porTipo.credito)],
+        [`Plazo${cant("plazo")}:`, fmtMoney(data.porTipo.plazo)],
+        ...(data.abonos > 0 ? [["Abonos:", fmtMoney(data.abonos)]] : []),
+    ]);
+    encoder.line("--------------------------------");
+    const etiqueta = data.diferencia === 0 ? "Caja cuadrada" : data.diferencia > 0 ? "Sobrante" : "Faltante";
+    encoder.table(columnas, [
+        ["Efectivo esperado:", fmtMoney(data.esperado)],
+        ["Efectivo contado:", fmtMoney(data.contado)],
+        [`${etiqueta}:`, (e) => e.bold(true).text(fmtMoney(Math.abs(data.diferencia))).bold(false)],
+    ]);
+    encoder.line("--------------------------------");
+    encoder.align("center");
+    encoder.newline();
+    encoder.line("- - - - - CORTAR AQUI - - - - -");
+    encoder.cut();
+
+    return encoder.encode();
+};
+
+// ── Versión HTML del cierre (para imprimir por navegador cuando no hay impresora Bluetooth) ──
+const CierrePrintable = ({ data, perfil, periodoLabel }) => {
+    if (!data) return null;
+    const etiqueta = data.diferencia === 0 ? "Cuadrada" : data.diferencia > 0 ? "Sobrante" : "Faltante";
+    return (
+        <div style={{ fontFamily: "monospace", fontSize: "12px", width: "280px", padding: "12px", color: "#000", background: "#fff" }}>
+            <div style={{ textAlign: "center", marginBottom: "8px" }}>
+                {perfil?.logo_url && (
+                    <img src={perfil.logo_url} alt="logo"
+                        style={{ width: "60px", height: "60px", objectFit: "contain", margin: "0 auto 4px" }} />
+                )}
+                <div style={{ fontWeight: "bold", fontSize: "14px" }}>{perfil?.nombre_tienda ?? "Mi Tienda"}</div>
+                {perfil?.direccion && <div>{perfil.direccion}</div>}
+                <div style={{ fontWeight: "bold", marginTop: "6px" }}>CIERRE DE CAJA</div>
+                <div>{periodoLabel}</div>
+                <div>{new Date().toLocaleString("es-DO")}</div>
+            </div>
+            <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Efectivo</span><span>{fmtMoney(data.porTipo.cash)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Crédito</span><span>{fmtMoney(data.porTipo.credito)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Plazo</span><span>{fmtMoney(data.porTipo.plazo)}</span></div>
+            {data.abonos > 0 && (
+                <div style={{ display: "flex", justifyContent: "space-between" }}><span>Abonos</span><span>{fmtMoney(data.abonos)}</span></div>
+            )}
+            <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Esperado</span><span>{fmtMoney(data.esperado)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between" }}><span>Contado</span><span>{fmtMoney(data.contado)}</span></div>
+            <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", marginTop: "4px" }}>
+                <span>{etiqueta}</span>
+                <span>{fmtMoney(Math.abs(data.diferencia))}</span>
+            </div>
+        </div>
+    );
+};
 
 function startOfDay(d = new Date()) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
 function startOfNextDay(d = new Date()) { return new Date(d.getFullYear(), d.getMonth(), d.getDate() + 1); }
@@ -40,7 +126,42 @@ export default function Reportes() {
     const [chartData, setChartData] = useState([]);
     const [loadingChart, setLoadingChart] = useState(true);
     const [mode, setMode] = useState("mes");
-    const [tab, setTab] = useState("inventario"); // inventario | ventas | ganancia
+    const [tab, setTab] = useState("inventario"); // inventario | ventas | ganancia | cierre
+    const [cierre, setCierre] = useState({
+        porTipo: { cash: 0, credito: 0, plazo: 0 },
+        countTipo: { cash: 0, credito: 0, plazo: 0 },
+        abonos: 0,
+    });
+    const [montoContado, setMontoContado] = useState("");
+    const [perfil, setPerfil] = useState(null);
+    const [historial, setHistorial] = useState([]);
+    const [guardando, setGuardando] = useState(false);
+    const [guardMsg, setGuardMsg] = useState("");
+    const [imprimiendoCierre, setImprimiendoCierre] = useState(false);
+    const [reimprimiendoId, setReimprimiendoId] = useState(null);
+    const [historialAReimprimir, setHistorialAReimprimir] = useState(null);
+
+    const cierreRef = useRef();
+    const handlePrintCierre = useReactToPrint({
+        contentRef: cierreRef,
+        documentTitle: "Cierre de caja",
+        pageStyle: `@page { size: 58mm auto; margin: 2mm; } @media print { body { margin: 0; } }`,
+    });
+
+    const historialRef = useRef();
+    const handlePrintHistorial = useReactToPrint({
+        contentRef: historialRef,
+        documentTitle: "Cierre de caja",
+        pageStyle: `@page { size: 58mm auto; margin: 2mm; } @media print { body { margin: 0; } }`,
+    });
+
+    useEffect(() => {
+        if (historialAReimprimir) {
+            handlePrintHistorial();
+            setHistorialAReimprimir(null);
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [historialAReimprimir]);
 
     const range = useMemo(() => {
         const now = new Date();
@@ -95,9 +216,117 @@ export default function Reportes() {
         });
         setChartData(Object.entries(grouped).map(([fecha, ganancia]) => ({ fecha, ganancia })));
         setLoadingChart(false);
+
+        // Cierre: ventas del período desglosadas por forma de pago + abonos cobrados
+        const { data: facturasCierre } = await supabase
+            .from("invoices")
+            .select("tipo_pago, status, total")
+            .eq("user_id", userId)
+            .gte("created_at", range.from.toISOString())
+            .lt("created_at", range.to.toISOString())
+            .neq("status", "cancelada");
+
+        const porTipo = { cash: 0, credito: 0, plazo: 0 };
+        const countTipo = { cash: 0, credito: 0, plazo: 0 };
+        (facturasCierre ?? []).forEach((f) => {
+            porTipo[f.tipo_pago] = (porTipo[f.tipo_pago] ?? 0) + Number(f.total ?? 0);
+            countTipo[f.tipo_pago] = (countTipo[f.tipo_pago] ?? 0) + 1;
+        });
+
+        const { data: pagosCierre } = await supabase
+            .from("payments")
+            .select("monto")
+            .gte("created_at", range.from.toISOString())
+            .lt("created_at", range.to.toISOString());
+
+        const abonos = (pagosCierre ?? []).reduce((sum, p) => sum + Number(p.monto ?? 0), 0);
+
+        setCierre({ porTipo, countTipo, abonos });
     };
 
     useEffect(() => { loadData(); }, [range.from.getTime(), range.to.getTime()]);
+
+    const cargarHistorial = async () => {
+        const { data: userData } = await supabase.auth.getUser();
+        const { data } = await supabase
+            .from("cierres_caja")
+            .select("*")
+            .eq("user_id", userData.user.id)
+            .order("created_at", { ascending: false })
+            .limit(20);
+        setHistorial(data ?? []);
+    };
+
+    useEffect(() => {
+        const cargarPerfil = async () => {
+            const { data: userData } = await supabase.auth.getUser();
+            const { data } = await supabase
+                .from("perfiles").select("nombre_tienda,logo_url,direccion")
+                .eq("user_id", userData.user.id).single();
+            if (data) setPerfil(data);
+        };
+        queueMicrotask(() => { cargarPerfil(); cargarHistorial(); });
+    }, []);
+
+    // ── Cuadre de efectivo (tab Cierre) ──
+    const periodoLabel = PERIODO_LABEL[mode];
+    const contado = parseFloat(montoContado) || 0;
+    const esperado = cierre.porTipo.cash;
+    const diferencia = Math.round((contado - esperado) * 100) / 100;
+    const totalVentasCierre = cierre.porTipo.cash + cierre.porTipo.credito + cierre.porTipo.plazo;
+    const cierreData = { ...cierre, esperado, contado, diferencia };
+
+    const guardarCierre = async () => {
+        setGuardando(true);
+        setGuardMsg("");
+        const { data: userData } = await supabase.auth.getUser();
+        const { error } = await supabase.from("cierres_caja").insert({
+            user_id: userData.user.id,
+            periodo: mode,
+            desde: range.from.toISOString(),
+            hasta: range.to.toISOString(),
+            ventas_cash: cierre.porTipo.cash,
+            ventas_credito: cierre.porTipo.credito,
+            ventas_plazo: cierre.porTipo.plazo,
+            abonos: cierre.abonos,
+            efectivo_esperado: esperado,
+            efectivo_contado: contado,
+            diferencia,
+        });
+        setGuardando(false);
+        if (error) { setGuardMsg(error.message); return; }
+        setGuardMsg("Cierre guardado.");
+        cargarHistorial();
+    };
+
+    const imprimirCierre = () => {
+        if (!tieneImpresoraConfigurada()) { handlePrintCierre(); return; }
+        setImprimiendoCierre(true);
+        setGuardMsg("");
+        buildEscPosCierre(cierreData, perfil, periodoLabel)
+            .then((bytes) => imprimirBytes(bytes, 1))
+            .then(() => setImprimiendoCierre(false))
+            .catch((err) => { setGuardMsg(typeof err === "string" ? err : "Error al imprimir: " + err.message); setImprimiendoCierre(false); });
+    };
+
+    const reimprimirCierre = (h) => {
+        const data = {
+            porTipo: { cash: h.ventas_cash, credito: h.ventas_credito, plazo: h.ventas_plazo },
+            countTipo: null,
+            abonos: h.abonos,
+            esperado: h.efectivo_esperado,
+            contado: h.efectivo_contado,
+            diferencia: h.diferencia,
+        };
+        const label = PERIODO_LABEL[h.periodo] ?? h.periodo;
+
+        if (!tieneImpresoraConfigurada()) { setHistorialAReimprimir({ data, periodoLabel: label }); return; }
+        setReimprimiendoId(h.id);
+        buildEscPosCierre(data, perfil, label)
+            .then((bytes) => imprimirBytes(bytes, 1))
+            .then(() => setReimprimiendoId(null))
+            .catch((err) => { setGuardMsg(typeof err === "string" ? err : "Error al imprimir: " + err.message); setReimprimiendoId(null); });
+    };
 
     // ── Métricas de inventario ──
     const productosConStock = useMemo(() => productos.filter((p) => p.control_inventario), [productos]);
@@ -149,6 +378,7 @@ export default function Reportes() {
                     { k: "inventario", t: "Inventario", Icon: Package },
                     { k: "ventas", t: "Más vendidos", Icon: TrendingUp },
                     { k: "ganancia", t: "Ganancia", Icon: DollarSign },
+                    { k: "cierre", t: "Cierre", Icon: Wallet },
                 ].map(({ k, t, Icon }) => (
                     <button key={k} onClick={() => setTab(k)}
                         className={`flex-1 flex items-center justify-center gap-1.5 py-2 rounded-lg text-xs font-medium transition ${tab === k ? "bg-white text-gray-900 shadow-sm" : "text-gray-500"
@@ -393,6 +623,171 @@ export default function Reportes() {
                         )}
                     </div>
                 </div>
+            )}
+
+            {/* ══ TAB: CIERRE ══ */}
+            {tab === "cierre" && (
+                    <div className="space-y-4">
+                        {/* Filtros período */}
+                        <div className="flex gap-2">
+                            {[{ k: "hoy", t: "Hoy" }, { k: "semana", t: "Semana" }, { k: "mes", t: "Mes" }].map((x) => (
+                                <button key={x.k} onClick={() => setMode(x.k)}
+                                    className={`flex-1 py-2 rounded-xl text-xs font-medium border transition ${mode === x.k ? "bg-gray-900 text-white border-gray-900" : "border-gray-100 text-gray-600"
+                                        }`}>
+                                    {x.t}
+                                </button>
+                            ))}
+                        </div>
+
+                        {totalVentasCierre === 0 ? (
+                            <div className="flex flex-col items-center justify-center py-16 text-center">
+                                <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">
+                                    <Wallet size={20} className="text-gray-400" />
+                                </div>
+                                <p className="font-medium text-gray-900 text-sm">Sin ventas en este período</p>
+                            </div>
+                        ) : (
+                            <>
+                                {/* Desglose por forma de pago */}
+                                <div className="bg-white border border-gray-100 rounded-2xl divide-y divide-gray-50">
+                                    <div className="px-4 py-3">
+                                        <p className="text-xs font-semibold text-gray-900">Ventas por forma de pago</p>
+                                    </div>
+                                    {[
+                                        { k: "cash", t: "Efectivo" },
+                                        { k: "credito", t: "Crédito" },
+                                        { k: "plazo", t: "Plazo" },
+                                    ].map(({ k, t }) => (
+                                        <div key={k} className="px-4 py-3 flex items-center justify-between">
+                                            <div>
+                                                <p className="text-xs font-medium text-gray-900">{t}</p>
+                                                <p className="text-[10px] text-gray-400">{cierre.countTipo[k]} factura{cierre.countTipo[k] !== 1 ? "s" : ""}</p>
+                                            </div>
+                                            <p className="text-sm font-bold text-gray-900">{fmtMoney(cierre.porTipo[k])}</p>
+                                        </div>
+                                    ))}
+                                </div>
+
+                                {/* Cuadre de efectivo */}
+                                <div className="bg-white border border-gray-100 rounded-2xl p-4 space-y-3">
+                                    <p className="text-xs font-semibold text-gray-900">Cuadre de efectivo</p>
+                                    <div className="flex items-center justify-between">
+                                        <p className="text-xs text-gray-500">Efectivo esperado (ventas cash)</p>
+                                        <p className="text-sm font-bold text-gray-900">{fmtMoney(esperado)}</p>
+                                    </div>
+
+                                    <div>
+                                        <label className="text-xs text-gray-500 mb-1.5 block">Efectivo contado</label>
+                                        <div className="flex items-center gap-2 border border-gray-200 rounded-xl px-3 py-2">
+                                            <span className="text-sm text-gray-400">RD$</span>
+                                            <input
+                                                type="number" inputMode="decimal" placeholder="0.00"
+                                                value={montoContado}
+                                                onChange={(e) => setMontoContado(e.target.value)}
+                                                className="flex-1 text-right text-lg font-semibold focus:outline-none bg-transparent"
+                                            />
+                                        </div>
+                                    </div>
+
+                                    {montoContado !== "" && (
+                                        <div className={`rounded-xl p-3 text-center ${diferencia === 0 ? "bg-green-50" : diferencia > 0 ? "bg-blue-50" : "bg-red-50"
+                                            }`}>
+                                            <p className={`text-xs font-medium ${diferencia === 0 ? "text-green-700" : diferencia > 0 ? "text-blue-700" : "text-red-600"
+                                                }`}>
+                                                {diferencia === 0 ? "Caja cuadrada" : diferencia > 0 ? "Sobrante" : "Faltante"}
+                                            </p>
+                                            {diferencia !== 0 && (
+                                                <p className={`text-lg font-bold ${diferencia > 0 ? "text-blue-700" : "text-red-600"}`}>
+                                                    {fmtMoney(Math.abs(diferencia))}
+                                                </p>
+                                            )}
+                                        </div>
+                                    )}
+
+                                    {guardMsg && <p className="text-xs text-center text-gray-500">{guardMsg}</p>}
+
+                                    <div className="grid grid-cols-2 gap-2 pt-1">
+                                        <button onClick={guardarCierre} disabled={guardando || montoContado === ""}
+                                            className="flex items-center justify-center gap-1.5 bg-gray-900 text-white rounded-xl py-2.5 text-xs font-semibold disabled:opacity-50">
+                                            <Save size={13} /> {guardando ? "Guardando..." : "Guardar cierre"}
+                                        </button>
+                                        <button onClick={imprimirCierre} disabled={imprimiendoCierre}
+                                            className="flex items-center justify-center gap-1.5 border border-gray-100 rounded-xl py-2.5 text-xs font-semibold text-gray-700 disabled:opacity-50">
+                                            <Printer size={13} /> {imprimiendoCierre ? "Imprimiendo..." : "Imprimir"}
+                                        </button>
+                                    </div>
+                                    <div className="hidden">
+                                        <div ref={cierreRef}>
+                                            <CierrePrintable data={cierreData} perfil={perfil} periodoLabel={periodoLabel} />
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* Abonos (informativo) */}
+                                {cierre.abonos > 0 && (
+                                    <div className="bg-amber-50 border border-amber-100 rounded-2xl p-4">
+                                        <div className="flex items-center justify-between">
+                                            <p className="text-xs font-medium text-amber-800">Abonos cobrados en el período</p>
+                                            <p className="text-sm font-bold text-amber-800">{fmtMoney(cierre.abonos)}</p>
+                                        </div>
+                                        <p className="text-[10px] text-amber-700 mt-1">
+                                            No se incluyen arriba porque no se registra si se cobraron en efectivo — súmalos
+                                            manualmente al cuadre si corresponde.
+                                        </p>
+                                    </div>
+                                )}
+                            </>
+                        )}
+
+                        {/* Historial de cierres guardados */}
+                        {historial.length > 0 && (
+                            <div className="bg-white border border-gray-100 rounded-2xl overflow-hidden">
+                                <div className="px-4 py-3 border-b border-gray-100">
+                                    <p className="text-xs font-semibold text-gray-900">Historial de cierres</p>
+                                </div>
+                                <div className="divide-y divide-gray-50">
+                                    {historial.map((h) => {
+                                        const diff = Number(h.diferencia ?? 0);
+                                        const etiqueta = diff === 0 ? "Cuadrada" : diff > 0 ? "Sobrante" : "Faltante";
+                                        const color = diff === 0 ? "text-green-700 bg-green-50" : diff > 0 ? "text-blue-700 bg-blue-50" : "text-red-600 bg-red-50";
+                                        return (
+                                            <div key={h.id} className="px-4 py-3 flex items-center justify-between gap-3">
+                                                <div className="min-w-0">
+                                                    <p className="text-xs font-medium text-gray-900">
+                                                        {new Date(h.created_at).toLocaleString("es-DO", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" })}
+                                                    </p>
+                                                    <p className="text-[10px] text-gray-400">
+                                                        {PERIODO_LABEL[h.periodo] ?? h.periodo} · Esperado {fmtMoney(h.efectivo_esperado)} · Contado {fmtMoney(h.efectivo_contado)}
+                                                    </p>
+                                                </div>
+                                                <div className="flex items-center gap-2 flex-shrink-0">
+                                                    <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${color}`}>
+                                                        {etiqueta}{diff !== 0 ? ` ${fmtMoney(Math.abs(diff))}` : ""}
+                                                    </span>
+                                                    <button onClick={() => reimprimirCierre(h)} disabled={reimprimiendoId === h.id}
+                                                        className="w-7 h-7 grid place-items-center rounded-lg border border-gray-100 text-gray-500 disabled:opacity-50">
+                                                        <Printer size={12} />
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        <div className="hidden">
+                            <div ref={historialRef}>
+                                {historialAReimprimir && (
+                                    <CierrePrintable
+                                        data={historialAReimprimir.data}
+                                        perfil={perfil}
+                                        periodoLabel={historialAReimprimir.periodoLabel}
+                                    />
+                                )}
+                            </div>
+                        </div>
+                    </div>
             )}
         </div>
     );

@@ -2,80 +2,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useReactToPrint } from "react-to-print";
 import { supabase } from "../lib/supabase";
 import ScannerModal from "../components/ScannerModal";
+import { tieneImpresoraConfigurada, imprimirBytes } from "../lib/bluetoothPrinter";
+import { buildEscPosTicket } from "../lib/ticket";
+import TicketPrintable from "../components/TicketPrintable";
 import { ShoppingCart, Search, X, Printer, FileText, Scan, Tag } from "lucide-react";
-
-// ── Ticket ───────────────────────────────────────────────
-const Ticket = ({ factura, perfil }) => {
-  if (!factura) return null;
-  return (
-    <div style={{ fontFamily: "monospace", fontSize: "12px", width: "280px", padding: "12px", color: "#000", background: "#fff" }}>
-      <div style={{ textAlign: "center", marginBottom: "8px" }}>
-        {perfil?.logo_url && (
-          <img src={perfil.logo_url} alt="logo"
-            style={{ width: "60px", height: "60px", objectFit: "contain", margin: "0 auto 4px" }} />
-        )}
-        <div style={{ fontWeight: "bold", fontSize: "14px" }}>{perfil?.nombre_tienda ?? "Mi Tienda"}</div>
-        {perfil?.telefono && <div>Tel: {perfil.telefono}</div>}
-      </div>
-      <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-      <div style={{ marginBottom: "6px" }}>
-        <div>Fecha: {new Date(factura.fecha).toLocaleString("es-DO")}</div>
-        <div>Pago: {factura.tipo_pago === "cash" ? "Cash" : factura.tipo_pago === "credito" ? "Crédito" : "Plazo"}</div>
-        {factura.cliente && <div>Cliente: {factura.cliente}</div>}
-      </div>
-      <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-      <table style={{ width: "100%", borderCollapse: "collapse" }}>
-        <thead>
-          <tr>
-            <th style={{ textAlign: "left" }}>Producto</th>
-            <th style={{ textAlign: "center" }}>Cant</th>
-            <th style={{ textAlign: "right" }}>Sub</th>
-          </tr>
-        </thead>
-        <tbody>
-          {factura.items.map((it, i) => (
-            <tr key={i}>
-              <td style={{ paddingRight: "4px", maxWidth: "120px", wordBreak: "break-word" }}>
-                {it.nombre}
-                {it.descuento_pct > 0 && (
-                  <div style={{ fontSize: "10px", color: "#16a34a" }}>Desc: {it.descuento_pct}%</div>
-                )}
-              </td>
-              <td style={{ textAlign: "center" }}>{it.qty}</td>
-              <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
-                {it.descuento_pct > 0 && (
-                  <div style={{ fontSize: "10px", textDecoration: "line-through", color: "#9ca3af" }}>
-                    RD$ {(it.qty * Number(it.precio_venta_original)).toFixed(2)}
-                  </div>
-                )}
-                RD$ {(it.qty * Number(it.precio_venta)).toFixed(2)}
-              </td>
-            </tr>
-          ))}
-        </tbody>
-      </table>
-      <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-      {factura.descuentoItemsMonto > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#16a34a" }}>
-          <span>Desc. por artículos</span>
-          <span>- RD$ {Number(factura.descuentoItemsMonto).toFixed(2)}</span>
-        </div>
-      )}
-      {factura.descuentoMonto > 0 && (
-        <div style={{ display: "flex", justifyContent: "space-between", fontSize: "11px", color: "#16a34a" }}>
-          <span>Desc. general</span>
-          <span>- RD$ {Number(factura.descuentoMonto).toFixed(2)}</span>
-        </div>
-      )}
-      <div style={{ display: "flex", justifyContent: "space-between", fontWeight: "bold", fontSize: "14px", marginTop: "4px" }}>
-        <span>TOTAL</span>
-        <span>RD$ {Number(factura.total).toFixed(2)}</span>
-      </div>
-      <div style={{ borderTop: "1px dashed #000", margin: "8px 0" }} />
-      <div style={{ textAlign: "center", fontSize: "11px", marginTop: "8px" }}>¡Gracias por su compra!</div>
-    </div>
-  );
-};
 
 // ── Card de producto ─────────────────────────────────────
 const ProductCard = ({ p, onAdd, inCart }) => {
@@ -146,12 +76,24 @@ export default function Facturar() {
   const [montoCobrado, setMontoCobrado] = useState("");
 
   const ticketRef = useRef();
+  const [imprimiendo, setImprimiendo] = useState(false);
+  const [printMsg, setPrintMsg] = useState("");
 
   const handlePrint = useReactToPrint({
     contentRef: ticketRef,
     documentTitle: "Ticket",
     pageStyle: `@page { size: 58mm auto; margin: 2mm; } @media print { body { margin: 0; } }`,
   });
+
+  const imprimir = () => {
+    if (!tieneImpresoraConfigurada()) { handlePrint(); return; }
+    setImprimiendo(true);
+    setPrintMsg("");
+    buildEscPosTicket(facturaImpresa, perfil)
+      .then((bytes) => imprimirBytes(bytes, perfil?.copias_ticket || 1))
+      .then(() => setImprimiendo(false))
+      .catch((err) => { setPrintMsg(typeof err === "string" ? err : "Error al imprimir: " + err.message); setImprimiendo(false); });
+  };
 
   const loadData = async () => {
     setLoading(true);
@@ -160,7 +102,7 @@ export default function Facturar() {
     const [c, p, perf, desc] = await Promise.all([
       supabase.from("customers").select("id,nombre,apellido,telefono").eq("user_id", userId).order("created_at", { ascending: false }),
       supabase.from("products").select("id,nombre,codigo,precio_venta,precio_compra,control_inventario,cantidad,imagen_url,categoria").eq("user_id", userId).order("nombre", { ascending: true }),
-      supabase.from("perfiles").select("nombre_tienda,telefono,logo_url").eq("user_id", userId).single(),
+      supabase.from("perfiles").select("nombre_tienda,telefono,logo_url,direccion,copias_ticket").eq("user_id", userId).single(),
       supabase.from("discounts").select("id,nombre,tipo,valor").eq("user_id", userId).eq("activo", true).order("nombre"),
     ]);
     setClientes(c.data ?? []);
@@ -296,6 +238,8 @@ export default function Facturar() {
         descuento_pct: it.descuento_pct,
       })),
       total: totalFinal,
+      montoCobrado: tipoPago === "cash" && montoCobrado !== "" ? parseFloat(montoCobrado) : null,
+      vuelto: tipoPago === "cash" && montoCobrado !== "" ? Math.round((parseFloat(montoCobrado) - totalFinal) * 100) / 100 : null,
     });
 
     setCart([]);
@@ -305,6 +249,7 @@ export default function Facturar() {
     setDiscountId("");
     setDescPorItem({});
     setModoDescItem(false);
+    setMontoCobrado("");
     setShowCarrito(false);
     setShowTicket(true);
     loadData();
@@ -554,12 +499,13 @@ export default function Facturar() {
               <button onClick={() => setShowTicket(false)}><X size={18} className="text-gray-500" /></button>
             </div>
             <div className="flex justify-center mb-4 border border-gray-100 rounded-xl p-4 bg-gray-50 overflow-x-auto">
-              <div ref={ticketRef}><Ticket factura={facturaImpresa} perfil={perfil} /></div>
+              <div ref={ticketRef}><TicketPrintable factura={facturaImpresa} perfil={perfil} /></div>
             </div>
+            {printMsg && <p className="text-xs text-red-500 mb-2">{printMsg}</p>}
             <div className="grid grid-cols-2 gap-3">
-              <button onClick={handlePrint}
-                className="flex items-center justify-center gap-2 bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold">
-                <Printer size={16} /> Imprimir
+              <button onClick={imprimir} disabled={imprimiendo}
+                className="flex items-center justify-center gap-2 bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold disabled:opacity-50">
+                <Printer size={16} /> {imprimiendo ? "Imprimiendo..." : "Imprimir"}
               </button>
               <button onClick={handlePrint}
                 className="flex items-center justify-center gap-2 border border-gray-100 rounded-xl py-3 text-sm font-semibold text-gray-700">

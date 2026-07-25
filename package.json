@@ -10,8 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
+    "@point-of-sale/receipt-printer-encoder": "^3.0.3",
     "@supabase/supabase-js": "^2.97.0",
     "browser-image-compression": "^2.0.2",
+    "cordova-plugin-android-permissions": "^1.1.5",
+    "cordova-plugin-bluetooth-serial": "^0.4.7",
     "html5-qrcode": "^2.3.8",
     "lucide-react": "^0.575.0",
     "react": "^19.2.0",
