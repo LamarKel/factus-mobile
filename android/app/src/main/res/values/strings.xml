@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Factus Mobile</string>
+    <string name="title_activity_main">Factus Mobile</string>
+    <string name="package_name">com.factus.mobile</string>
+    <string name="custom_url_scheme">com.factus.mobile</string>
+</resources>

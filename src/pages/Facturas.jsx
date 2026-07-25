@@ -1,7 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useReactToPrint } from "react-to-print";
 import toast from "react-hot-toast";
 import { supabase } from "../lib/supabase";
-import { RefreshCw, Search, X, ChevronRight } from "lucide-react";
+import { tieneImpresoraConfigurada, imprimirBytes } from "../lib/bluetoothPrinter";
+import { buildEscPosTicket } from "../lib/ticket";
+import TicketPrintable from "../components/TicketPrintable";
+import { RefreshCw, Search, X, ChevronRight, Printer } from "lucide-react";
 
 function fmtMoney(n) {
   return `RD$ ${Number(n ?? 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -49,6 +53,27 @@ export default function Facturas() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [items, setItems] = useState([]);
   const [payments, setPayments] = useState([]);
+  const [perfil, setPerfil] = useState(null);
+  const [reimprimiendo, setReimprimiendo] = useState(false);
+  const [reimprimirMsg, setReimprimirMsg] = useState("");
+
+  const ticketRef = useRef();
+  const handlePrintTicket = useReactToPrint({
+    contentRef: ticketRef,
+    documentTitle: "Ticket",
+    pageStyle: `@page { size: 58mm auto; margin: 2mm; } @media print { body { margin: 0; } }`,
+  });
+
+  useEffect(() => {
+    const cargarPerfil = async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const { data } = await supabase
+        .from("perfiles").select("nombre_tienda,telefono,logo_url,direccion")
+        .eq("user_id", userData.user.id).single();
+      if (data) setPerfil(data);
+    };
+    queueMicrotask(() => cargarPerfil());
+  }, []);
 
   const fetchFacturas = async () => {
     setLoading(true);
@@ -109,6 +134,36 @@ export default function Facturas() {
 
   const tieneAbonos = (payments?.length ?? 0) > 0;
   const bloqueaCancelar = selected?.tipo_pago !== "cash" && tieneAbonos;
+
+  const clienteSeleccionado = selected?.customer
+    ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
+    : "Consumidor final";
+
+  const facturaParaReimprimir = selected && {
+    fecha: selected.created_at,
+    tipo_pago: selected.tipo_pago,
+    cliente: clienteSeleccionado,
+    descuentoItemsMonto: 0,
+    descuentoMonto: 0,
+    items: items.map((it) => ({
+      nombre: it.nombre_producto_snapshot,
+      qty: it.cantidad,
+      precio_venta: it.precio_venta_unit,
+      precio_venta_original: it.precio_venta_unit,
+      descuento_pct: 0,
+    })),
+    total: selected.total,
+  };
+
+  const reimprimirFactura = () => {
+    if (!tieneImpresoraConfigurada()) { handlePrintTicket(); return; }
+    setReimprimiendo(true);
+    setReimprimirMsg("");
+    buildEscPosTicket(facturaParaReimprimir, perfil)
+      .then((bytes) => imprimirBytes(bytes))
+      .then(() => setReimprimiendo(false))
+      .catch((err) => { setReimprimirMsg(typeof err === "string" ? err : "Error al imprimir: " + err.message); setReimprimiendo(false); });
+  };
 
   // Contadores para los filtros
   const counts = useMemo(() => ({
@@ -357,6 +412,19 @@ export default function Facturas() {
 
             {/* Acciones */}
             <div className="space-y-2 border-t border-gray-100 pt-4">
+              {reimprimirMsg && <p className="text-xs text-red-500">{reimprimirMsg}</p>}
+
+              <button
+                disabled={detailLoading || reimprimiendo}
+                onClick={reimprimirFactura}
+                className="w-full flex items-center justify-center gap-2 border border-gray-100 rounded-xl py-3 text-sm font-semibold text-gray-700 disabled:opacity-50"
+              >
+                <Printer size={14} /> {reimprimiendo ? "Imprimiendo..." : "Reimprimir"}
+              </button>
+              <div className="hidden">
+                <div ref={ticketRef}><TicketPrintable factura={facturaParaReimprimir} perfil={perfil} /></div>
+              </div>
+
               {selected.tipo_pago !== "cash" && tieneAbonos && selected.status !== "cancelada" && (
                 <button
                   className="w-full border border-amber-200 text-amber-700 bg-amber-50 py-3 rounded-xl text-sm font-semibold"

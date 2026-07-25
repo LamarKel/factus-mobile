@@ -66,7 +66,10 @@ export default function Login() {
       nav("/");
     } catch (err) {
       console.error(err);
-      toast.error("Ocurrió un error. Intenta de nuevo.");
+      const sinInternet = !navigator.onLine || /fetch/i.test(err?.message ?? "");
+      toast.error(sinInternet
+        ? "Sin conexión a internet. Conéctate e intenta de nuevo."
+        : "Ocurrió un error. Intenta de nuevo.");
     } finally {
       setLoading(false);
     }

@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import imageCompression from "browser-image-compression";
-import { Upload, Link, Copy, Check, Store } from "lucide-react";
+import { Upload, Link, Copy, Check, Store, Printer } from "lucide-react";
 
 export default function Perfil() {
+    const navigate = useNavigate();
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [uploading, setUploading] = useState(false);
@@ -13,7 +15,7 @@ export default function Perfil() {
     const [copied, setCopied] = useState(false);
 
     const [form, setForm] = useState({
-        nombre_tienda: "", telefono: "", logo_url: "",
+        nombre_tienda: "", telefono: "", logo_url: "", direccion: "", copias_ticket: 1,
     });
 
     useEffect(() => {
@@ -31,6 +33,8 @@ export default function Perfil() {
                     nombre_tienda: data.nombre_tienda ?? "",
                     telefono: data.telefono ?? "",
                     logo_url: data.logo_url ?? "",
+                    direccion: data.direccion ?? "",
+                    copias_ticket: data.copias_ticket ?? 1,
                 });
             }
             setLoading(false);
@@ -70,6 +74,8 @@ export default function Perfil() {
             nombre_tienda: form.nombre_tienda.trim(),
             telefono: form.telefono.trim() || null,
             logo_url: form.logo_url.trim() || null,
+            direccion: form.direccion.trim() || null,
+            copias_ticket: form.copias_ticket,
         }, { onConflict: "user_id" });
 
         setSaving(false);
@@ -162,6 +168,19 @@ export default function Perfil() {
                         Sin espacios ni + — se usa para el botón de WhatsApp del catálogo
                     </p>
                 </div>
+
+                <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Dirección</label>
+                    <input
+                        className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                        placeholder="Calle, sector, ciudad..."
+                        value={form.direccion}
+                        onChange={(e) => setForm({ ...form, direccion: e.target.value })}
+                    />
+                    <p className="text-[10px] text-gray-400 mt-1">
+                        Aparece en la factura impresa, debajo del teléfono.
+                    </p>
+                </div>
             </div>
 
             {/* ── Link del catálogo ── */}
@@ -220,6 +239,33 @@ export default function Perfil() {
                     {msg}
                 </div>
             )}
+
+            {/* ── Impresión ── */}
+            <div className="bg-white border border-gray-100 rounded-2xl p-5 mb-4 space-y-3">
+                <p className="text-xs text-gray-500 font-medium">Impresión</p>
+                <div>
+                    <label className="text-xs text-gray-500 mb-1.5 block">Copias por factura</label>
+                    <div className="grid grid-cols-2 gap-2">
+                        {[1, 2].map((n) => (
+                            <button key={n} type="button"
+                                onClick={() => setForm({ ...form, copias_ticket: n })}
+                                className={`py-2 rounded-xl text-sm font-medium border transition ${form.copias_ticket === n ? "bg-gray-900 text-white border-gray-900" : "border-gray-100 text-gray-600"
+                                    }`}>
+                                {n} {n === 1 ? "copia" : "copias"}
+                            </button>
+                        ))}
+                    </div>
+                    <p className="text-[10px] text-gray-400 mt-1">
+                        Solo aplica a la impresión por Bluetooth (ej: una copia para el cliente y otra para la tienda).
+                    </p>
+                </div>
+
+                <button onClick={() => navigate("/impresora")}
+                    className="w-full flex items-center justify-center gap-2 py-3 border border-gray-100 rounded-xl text-sm text-gray-600 hover:bg-gray-50 transition">
+                    <Printer size={14} />
+                    Configurar impresora Bluetooth
+                </button>
+            </div>
 
             {/* ── Botón guardar ── */}
             <button onClick={handleGuardar} disabled={saving}

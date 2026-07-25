@@ -14,18 +14,52 @@ import Compras from "./pages/Compras";
 import Descuentos from "./pages/Descuentos";
 import OptimizarImagenes from "./pages/OptimizarImagenes";
 import Reportes from "./pages/Reportes";
+import Impresora from "./pages/Impresora";
 
 import AppShell from "./layout/AppShell";
+import AppSkeleton from "./components/AppSkeleton";
 import { supabase } from "./lib/supabase";
+
+function SinConexion({ onRetry }) {
+  return (
+    <div className="min-h-screen bg-gray-50 flex items-center justify-center p-6">
+      <div className="text-center max-w-xs">
+        <div className="w-14 h-14 bg-gray-100 rounded-2xl flex items-center justify-center mx-auto mb-4 text-2xl">
+          📡
+        </div>
+        <p className="font-semibold text-gray-900">Sin conexión a internet</p>
+        <p className="text-sm text-gray-500 mt-1">
+          Conéctate a internet e intenta de nuevo.
+        </p>
+        <button onClick={onRetry}
+          className="mt-4 bg-gray-900 text-white rounded-xl px-4 py-2.5 text-sm font-semibold">
+          Reintentar
+        </button>
+      </div>
+    </div>
+  );
+}
 
 function PrivateRoute({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [sinConexion, setSinConexion] = useState(false);
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => {
-      setSession(data.session);
-      setLoading(false);
+    queueMicrotask(() => {
+      setLoading(true);
+      setSinConexion(false);
+
+      supabase.auth.getSession()
+        .then(({ data }) => {
+          setSession(data.session);
+          setLoading(false);
+        })
+        .catch(() => {
+          setSinConexion(true);
+          setLoading(false);
+        });
     });
 
     const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
@@ -33,9 +67,10 @@ function PrivateRoute({ children }) {
     });
 
     return () => sub.subscription.unsubscribe();
-  }, []);
+  }, [intento]);
 
-  if (loading) return <div className="p-6">Cargando...</div>;
+  if (loading) return <AppSkeleton />;
+  if (sinConexion) return <SinConexion onRetry={() => setIntento((n) => n + 1)} />;
   if (!session) return <Navigate to="/login" replace />;
   return children;
 }
@@ -147,6 +182,14 @@ export default function App() {
           </PrivateRoute>
         } />
 
+
+        <Route path="/impresora" element={
+          <PrivateRoute>
+            <AppShell title="Impresora">
+              <Impresora />
+            </AppShell>
+          </PrivateRoute>
+        } />
 
         <Route path="/optimizar" element={
           <PrivateRoute>

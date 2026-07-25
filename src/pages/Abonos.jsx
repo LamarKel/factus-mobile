@@ -1,6 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useReactToPrint } from "react-to-print";
 import { supabase } from "../lib/supabase";
-import { RefreshCw, Search, X, Wallet } from "lucide-react";
+import { tieneImpresoraConfigurada, imprimirBytes } from "../lib/bluetoothPrinter";
+import { buildEscPosAbono } from "../lib/ticket";
+import AbonoPrintable from "../components/AbonoPrintable";
+import { RefreshCw, Search, X, Wallet, Printer, Check } from "lucide-react";
 
 function fmtMoney(n) {
   return `RD$ ${Number(n ?? 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -28,6 +32,28 @@ export default function Abonos() {
   const [monto, setMonto] = useState("");
   const [msg, setMsg] = useState("");
   const [saving, setSaving] = useState(false);
+  const [perfil, setPerfil] = useState(null);
+  const [abonoConfirmado, setAbonoConfirmado] = useState(null);
+  const [imprimiendo, setImprimiendo] = useState(false);
+  const [printMsg, setPrintMsg] = useState("");
+
+  const abonoRef = useRef();
+  const handlePrintAbono = useReactToPrint({
+    contentRef: abonoRef,
+    documentTitle: "Comprobante de abono",
+    pageStyle: `@page { size: 58mm auto; margin: 2mm; } @media print { body { margin: 0; } }`,
+  });
+
+  useEffect(() => {
+    const cargarPerfil = async () => {
+      const { data: userData } = await supabase.auth.getUser();
+      const { data } = await supabase
+        .from("perfiles").select("nombre_tienda,telefono,logo_url,direccion")
+        .eq("user_id", userData.user.id).single();
+      if (data) setPerfil(data);
+    };
+    queueMicrotask(() => cargarPerfil());
+  }, []);
 
   const fetchPendientes = async () => {
     setLoading(true);
@@ -59,8 +85,8 @@ export default function Abonos() {
     });
   }, [facturas, search]);
 
-  const open = (f) => { setSelected(f); setMonto(""); setMsg(""); };
-  const close = () => { setSelected(null); setMonto(""); setMsg(""); };
+  const open = (f) => { setSelected(f); setMonto(""); setMsg(""); setAbonoConfirmado(null); };
+  const close = () => { setSelected(null); setMonto(""); setMsg(""); setAbonoConfirmado(null); setPrintMsg(""); };
 
   const savePayment = async () => {
     setMsg("");
@@ -73,8 +99,30 @@ export default function Abonos() {
     });
     setSaving(false);
     if (error) { setMsg(error.message); return; }
-    close();
+
+    const clienteTxt = selected.customer
+      ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
+      : "Consumidor final";
+    setAbonoConfirmado({
+      fecha: new Date().toISOString(),
+      cliente: clienteTxt,
+      facturaId: String(selected.id).slice(0, 8),
+      monto: m,
+      totalFactura: selected.total,
+      totalPagado: Number(selected.total_pagado) + m,
+      saldoPendiente: Math.max(0, Number(selected.pendiente) - m),
+    });
     fetchPendientes();
+  };
+
+  const imprimirAbono = () => {
+    if (!tieneImpresoraConfigurada()) { handlePrintAbono(); return; }
+    setImprimiendo(true);
+    setPrintMsg("");
+    buildEscPosAbono(abonoConfirmado, perfil)
+      .then((bytes) => imprimirBytes(bytes))
+      .then(() => setImprimiendo(false))
+      .catch((err) => { setPrintMsg(typeof err === "string" ? err : "Error al imprimir: " + err.message); setImprimiendo(false); });
   };
 
   // Total pendiente general
@@ -200,80 +248,114 @@ export default function Abonos() {
               </button>
             </div>
 
-            {/* Info de la factura */}
-            <div className="bg-gray-50 rounded-2xl p-4 mb-4">
-              <p className="text-sm font-semibold text-gray-900 mb-3">
-                {selected.customer
-                  ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
-                  : "Consumidor final"}
-              </p>
-              <div className="grid grid-cols-3 gap-2 text-center">
-                <div className="bg-white rounded-xl p-3 border border-gray-100">
-                  <p className="text-[10px] text-gray-400">Total</p>
-                  <p className="text-xs font-bold text-gray-900 mt-0.5">{fmtMoney(selected.total)}</p>
-                </div>
-                <div className="bg-white rounded-xl p-3 border border-gray-100">
-                  <p className="text-[10px] text-gray-400">Pagado</p>
-                  <p className="text-xs font-bold text-green-600 mt-0.5">{fmtMoney(selected.total_pagado)}</p>
-                </div>
-                <div className="bg-white rounded-xl p-3 border border-red-100 bg-red-50">
-                  <p className="text-[10px] text-red-400">Pendiente</p>
-                  <p className="text-xs font-bold text-red-600 mt-0.5">{fmtMoney(selected.pendiente)}</p>
-                </div>
-              </div>
+            {!abonoConfirmado ? (
+              <>
+                {/* Info de la factura */}
+                <div className="bg-gray-50 rounded-2xl p-4 mb-4">
+                  <p className="text-sm font-semibold text-gray-900 mb-3">
+                    {selected.customer
+                      ? `${selected.customer.nombre ?? ""} ${selected.customer.apellido ?? ""}`.trim()
+                      : "Consumidor final"}
+                  </p>
+                  <div className="grid grid-cols-3 gap-2 text-center">
+                    <div className="bg-white rounded-xl p-3 border border-gray-100">
+                      <p className="text-[10px] text-gray-400">Total</p>
+                      <p className="text-xs font-bold text-gray-900 mt-0.5">{fmtMoney(selected.total)}</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 border border-gray-100">
+                      <p className="text-[10px] text-gray-400">Pagado</p>
+                      <p className="text-xs font-bold text-green-600 mt-0.5">{fmtMoney(selected.total_pagado)}</p>
+                    </div>
+                    <div className="bg-white rounded-xl p-3 border border-red-100 bg-red-50">
+                      <p className="text-[10px] text-red-400">Pendiente</p>
+                      <p className="text-xs font-bold text-red-600 mt-0.5">{fmtMoney(selected.pendiente)}</p>
+                    </div>
+                  </div>
 
-              {/* Barra de progreso en modal */}
-              <div className="mt-3 w-full bg-gray-200 rounded-full h-1.5">
-                <div
-                  className="bg-gray-900 h-1.5 rounded-full"
-                  style={{
-                    width: `${Math.min((Number(selected.total_pagado) / Number(selected.total)) * 100, 100)}%`
-                  }}
-                />
-              </div>
-            </div>
+                  {/* Barra de progreso en modal */}
+                  <div className="mt-3 w-full bg-gray-200 rounded-full h-1.5">
+                    <div
+                      className="bg-gray-900 h-1.5 rounded-full"
+                      style={{
+                        width: `${Math.min((Number(selected.total_pagado) / Number(selected.total)) * 100, 100)}%`
+                      }}
+                    />
+                  </div>
+                </div>
 
-            {/* Input monto */}
-            <div className="mb-4">
-              <p className="text-xs text-gray-500 mb-2 font-medium">Monto del abono</p>
-              <input
-                className="w-full border border-gray-100 rounded-xl p-3 text-lg font-semibold text-center focus:outline-none focus:border-gray-300"
-                placeholder="RD$ 0.00"
-                inputMode="decimal"
-                value={monto}
-                onChange={(e) => setMonto(e.target.value)}
-              />
+                {/* Input monto */}
+                <div className="mb-4">
+                  <p className="text-xs text-gray-500 mb-2 font-medium">Monto del abono</p>
+                  <input
+                    className="w-full border border-gray-100 rounded-xl p-3 text-lg font-semibold text-center focus:outline-none focus:border-gray-300"
+                    placeholder="RD$ 0.00"
+                    inputMode="decimal"
+                    value={monto}
+                    onChange={(e) => setMonto(e.target.value)}
+                  />
 
-              {/* Atajos de monto */}
-              <div className="grid grid-cols-3 gap-2 mt-2">
-                {[
-                  { label: "25%", val: 0.25 },
-                  { label: "50%", val: 0.5 },
-                  { label: "Todo", val: 1 },
-                ].map((x) => (
-                  <button
-                    key={x.val}
-                    onClick={() => setMonto(String((Number(selected.pendiente) * x.val).toFixed(2)))}
-                    className="border border-gray-100 rounded-xl py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition"
-                  >
-                    {x.label}
-                    <span className="block text-[10px] text-gray-400 mt-0.5">
-                      {fmtMoney(Number(selected.pendiente) * x.val)}
-                    </span>
+                  {/* Atajos de monto */}
+                  <div className="grid grid-cols-3 gap-2 mt-2">
+                    {[
+                      { label: "25%", val: 0.25 },
+                      { label: "50%", val: 0.5 },
+                      { label: "Todo", val: 1 },
+                    ].map((x) => (
+                      <button
+                        key={x.val}
+                        onClick={() => setMonto(String((Number(selected.pendiente) * x.val).toFixed(2)))}
+                        className="border border-gray-100 rounded-xl py-2.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition"
+                      >
+                        {x.label}
+                        <span className="block text-[10px] text-gray-400 mt-0.5">
+                          {fmtMoney(Number(selected.pendiente) * x.val)}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {msg && <p className="text-xs text-red-500 mb-3">{msg}</p>}
+
+                <button
+                  disabled={saving || !monto}
+                  onClick={savePayment}
+                  className="w-full bg-gray-900 text-white py-3.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition"
+                >
+                  {saving ? "Guardando..." : `Abonar ${monto ? fmtMoney(Number(monto)) : ""}`}
+                </button>
+              </>
+            ) : (
+              <>
+                {/* Confirmación del abono guardado */}
+                <div className="bg-green-50 border border-green-100 rounded-2xl p-4 mb-4 text-center">
+                  <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-2">
+                    <Check size={18} className="text-green-600" />
+                  </div>
+                  <p className="text-sm font-semibold text-green-800">Abono guardado</p>
+                  <p className="text-2xl font-bold text-green-700 mt-1">{fmtMoney(abonoConfirmado.monto)}</p>
+                  <p className="text-xs text-green-700 mt-1">
+                    Saldo pendiente: {fmtMoney(abonoConfirmado.saldoPendiente)}
+                  </p>
+                </div>
+
+                {printMsg && <p className="text-xs text-red-500 mb-3">{printMsg}</p>}
+
+                <div className="grid grid-cols-2 gap-2 mb-2">
+                  <button onClick={imprimirAbono} disabled={imprimiendo}
+                    className="flex items-center justify-center gap-1.5 border border-gray-100 rounded-xl py-3 text-sm font-semibold text-gray-700 disabled:opacity-50">
+                    <Printer size={14} /> {imprimiendo ? "Imprimiendo..." : "Imprimir"}
                   </button>
-                ))}
-              </div>
-            </div>
-
-            {msg && <p className="text-xs text-red-500 mb-3">{msg}</p>}
-
-            <button
-              disabled={saving || !monto}
-              onClick={savePayment}
-              className="w-full bg-gray-900 text-white py-3.5 rounded-xl text-sm font-semibold disabled:opacity-50 transition"
-            >
-              {saving ? "Guardando..." : `Abonar ${monto ? fmtMoney(Number(monto)) : ""}`}
-            </button>
+                  <button onClick={close}
+                    className="bg-gray-900 text-white rounded-xl py-3 text-sm font-semibold">
+                    Listo
+                  </button>
+                </div>
+                <div className="hidden">
+                  <div ref={abonoRef}><AbonoPrintable data={abonoConfirmado} perfil={perfil} /></div>
+                </div>
+              </>
+            )}
           </div>
         </div>
       )}
