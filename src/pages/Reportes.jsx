@@ -209,10 +209,22 @@ export default function Reportes() {
             .lt("created_at", range.to.toISOString())
             .order("created_at", { ascending: true });
 
+        const { data: comprasGastos } = await supabase
+            .from("purchases")
+            .select("created_at, gastos_adicionales")
+            .eq("user_id", userId)
+            .gt("gastos_adicionales", 0)
+            .gte("created_at", range.from.toISOString())
+            .lt("created_at", range.to.toISOString());
+
         const grouped = {};
         (invoices ?? []).forEach((inv) => {
             const day = new Date(inv.created_at).toLocaleDateString("es-DO", { day: "2-digit", month: "short" });
             grouped[day] = (grouped[day] ?? 0) + Number(inv.total_ganancia ?? 0);
+        });
+        (comprasGastos ?? []).forEach((c) => {
+            const day = new Date(c.created_at).toLocaleDateString("es-DO", { day: "2-digit", month: "short" });
+            grouped[day] = (grouped[day] ?? 0) - Number(c.gastos_adicionales ?? 0);
         });
         setChartData(Object.entries(grouped).map(([fecha, ganancia]) => ({ fecha, ganancia })));
         setLoadingChart(false);

@@ -10,6 +10,8 @@ export default function Comprar() {
     const [proveedor, setProveedor] = useState("");
     const [searchProd, setSearchProd] = useState("");
     const [cart, setCart] = useState([]);
+    const [gastosAdicionales, setGastosAdicionales] = useState("");
+    const [gastosNota, setGastosNota] = useState("");
 
     const loadData = async () => {
         setLoading(true);
@@ -31,10 +33,11 @@ export default function Comprar() {
         return productos.filter((p) => `${p.nombre} ${p.codigo}`.toLowerCase().includes(s));
     }, [productos, searchProd]);
 
-    const totalCompra = useMemo(() =>
+    const subtotalProductos = useMemo(() =>
         cart.reduce((acc, it) => acc + it.cantidad * Number(it.precio_compra_nuevo || 0), 0),
         [cart]
     );
+    const totalCompra = subtotalProductos + Number(gastosAdicionales || 0);
 
     const addToCart = (p) => {
         setMsg("");
@@ -83,11 +86,15 @@ export default function Comprar() {
                 cantidad: it.cantidad,
                 precio_compra_nuevo: Number(it.precio_compra_nuevo),
             })),
+            p_gastos_adicionales: Number(gastosAdicionales || 0),
+            p_gastos_nota: gastosNota.trim() || null,
         });
         setSaving(false);
         if (error) { setMsg(error.message); return; }
         setCart([]);
         setProveedor("");
+        setGastosAdicionales("");
+        setGastosNota("");
         setMsg("✅ Compra registrada. Inventario y precios actualizados.");
         loadData();
     };
@@ -121,6 +128,31 @@ export default function Comprar() {
                             value={proveedor}
                             onChange={(e) => setProveedor(e.target.value)}
                         />
+                    </div>
+
+                    {/* Gastos adicionales */}
+                    <div className="bg-white border border-gray-100 rounded-2xl p-4">
+                        <label className="text-xs text-gray-500 font-medium block mb-2">
+                            Envío u otros gastos (opcional)
+                        </label>
+                        <div className="grid grid-cols-2 gap-2">
+                            <input
+                                className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                                placeholder="Monto RD$"
+                                inputMode="decimal"
+                                value={gastosAdicionales}
+                                onChange={(e) => setGastosAdicionales(e.target.value)}
+                            />
+                            <input
+                                className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                                placeholder="Nota (ej. Envío)"
+                                value={gastosNota}
+                                onChange={(e) => setGastosNota(e.target.value)}
+                            />
+                        </div>
+                        <p className="text-[11px] text-gray-400 mt-2">
+                            Este monto se resta de tu ganancia del período, no afecta el costo de los productos.
+                        </p>
                     </div>
 
                     {/* Buscador */}
@@ -269,9 +301,21 @@ export default function Comprar() {
                         {/* Total y botón */}
                         {cart.length > 0 && (
                             <>
-                                <div className="flex justify-between items-center border-t border-gray-100 pt-3 mb-3">
-                                    <span className="text-sm font-semibold text-gray-900">Total compra</span>
-                                    <span className="text-lg font-bold text-gray-900">RD$ {totalCompra.toFixed(2)}</span>
+                                <div className="border-t border-gray-100 pt-3 mb-3 space-y-1">
+                                    <div className="flex justify-between items-center text-xs text-gray-500">
+                                        <span>Subtotal productos</span>
+                                        <span>RD$ {subtotalProductos.toFixed(2)}</span>
+                                    </div>
+                                    {Number(gastosAdicionales || 0) > 0 && (
+                                        <div className="flex justify-between items-center text-xs text-gray-500">
+                                            <span>Envío / gastos</span>
+                                            <span>RD$ {Number(gastosAdicionales).toFixed(2)}</span>
+                                        </div>
+                                    )}
+                                    <div className="flex justify-between items-center pt-1">
+                                        <span className="text-sm font-semibold text-gray-900">Total compra</span>
+                                        <span className="text-lg font-bold text-gray-900">RD$ {totalCompra.toFixed(2)}</span>
+                                    </div>
                                 </div>
 
                                 {msg && (
