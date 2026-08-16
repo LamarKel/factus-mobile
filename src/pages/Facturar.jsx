@@ -10,6 +10,7 @@ import { ShoppingCart, Search, X, Printer, FileText, Scan, Tag } from "lucide-re
 // ── Card de producto ─────────────────────────────────────
 const ProductCard = ({ p, onAdd, inCart }) => {
   const agotado = p.control_inventario && (p.cantidad ?? 0) <= 0;
+  const tieneOferta = p.oferta_activa && p.precio_oferta;
   return (
     <button
       onClick={() => !agotado && onAdd(p)}
@@ -38,9 +39,20 @@ const ProductCard = ({ p, onAdd, inCart }) => {
       <div className="p-1.5">
         <p className="text-xs font-semibold text-gray-900 leading-tight line-clamp-2">{p.nombre}</p>
         {p.categoria && <p className="text-[10px] text-gray-400 mt-0.5">{p.categoria}</p>}
-        <p className="text-xs font-bold text-gray-900 mt-1">
-          RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
-        </p>
+        {tieneOferta ? (
+          <div className="mt-1">
+            <p className="text-xs font-bold text-red-600">
+              RD$ {Number(p.precio_oferta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+            </p>
+            <p className="text-[10px] text-gray-400 line-through">
+              RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs font-bold text-gray-900 mt-1">
+            RD$ {Number(p.precio_venta).toLocaleString("es-DO", { minimumFractionDigits: 2 })}
+          </p>
+        )}
         {p.control_inventario && <p className="text-[10px] text-gray-400">Stock: {p.cantidad ?? 0}</p>}
       </div>
     </button>
@@ -101,7 +113,7 @@ export default function Facturar() {
     const userId = userData.user.id;
     const [c, p, perf, desc] = await Promise.all([
       supabase.from("customers").select("id,nombre,apellido,telefono").eq("user_id", userId).order("created_at", { ascending: false }),
-      supabase.from("products").select("id,nombre,codigo,precio_venta,precio_compra,control_inventario,cantidad,imagen_url,categoria").eq("user_id", userId).order("nombre", { ascending: true }),
+      supabase.from("products").select("id,nombre,codigo,precio_venta,precio_compra,precio_oferta,oferta_activa,control_inventario,cantidad,imagen_url,categoria").eq("user_id", userId).order("nombre", { ascending: true }),
       supabase.from("perfiles").select("nombre_tienda,telefono,logo_url,direccion,copias_ticket").eq("user_id", userId).single(),
       supabase.from("discounts").select("id,nombre,tipo,valor").eq("user_id", userId).eq("activo", true).order("nombre"),
     ]);
@@ -159,10 +171,11 @@ export default function Facturar() {
 
   const addToCart = (p) => {
     setMsg("");
+    const precio = p.oferta_activa && p.precio_oferta ? Number(p.precio_oferta) : Number(p.precio_venta);
     setCart((prev) => {
       const found = prev.find((x) => x.product_id === p.id);
       if (found) return prev.map((x) => x.product_id === p.id ? { ...x, qty: x.qty + 1 } : x);
-      return [...prev, { product_id: p.id, nombre: p.nombre, codigo: p.codigo, precio_venta: p.precio_venta, qty: 1 }];
+      return [...prev, { product_id: p.id, nombre: p.nombre, codigo: p.codigo, precio_venta: precio, qty: 1 }];
     });
   };
 
