@@ -20,6 +20,7 @@ export default function Comprar() {
             .from("products")
             .select("id,nombre,codigo,precio_compra,cantidad,unidad_medida,imagen_url,categoria")
             .eq("user_id", userData.user.id)
+            .eq("es_combo", false)
             .order("nombre", { ascending: true });
         setProductos(data ?? []);
         setLoading(false);

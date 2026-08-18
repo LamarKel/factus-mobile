@@ -15,6 +15,7 @@ import Descuentos from "./pages/Descuentos";
 import OptimizarImagenes from "./pages/OptimizarImagenes";
 import Reportes from "./pages/Reportes";
 import Impresora from "./pages/Impresora";
+import Combos from "./pages/Combos";
 
 import AppShell from "./layout/AppShell";
 import AppSkeleton from "./components/AppSkeleton";
@@ -167,6 +168,14 @@ export default function App() {
             </PrivateRoute>
           }
         />
+        <Route path="/combos" element={
+          <PrivateRoute>
+            <AppShell title="Combos">
+              <Combos />
+            </AppShell>
+          </PrivateRoute>
+        } />
+
         <Route path="/descuentos" element={
           <PrivateRoute>
             <AppShell title="Descuentos">
