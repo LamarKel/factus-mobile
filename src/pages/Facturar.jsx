@@ -31,6 +31,11 @@ const ProductCard = ({ p, onAdd, inCart }) => {
           <span className="text-xs font-semibold text-gray-500 bg-white px-2 py-1 rounded-full border">Agotado</span>
         </div>
       )}
+      {p.es_combo && !agotado && (
+        <span className="absolute top-1.5 left-1.5 bg-gray-900 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-md">
+          Combo
+        </span>
+      )}
       {inCart && !agotado && (
         <div className="absolute top-1.5 right-1.5 w-5 h-5 bg-gray-900 text-white rounded-full flex items-center justify-center text-[10px] font-bold">
           {inCart}
@@ -113,7 +118,7 @@ export default function Facturar() {
     const userId = userData.user.id;
     const [c, p, perf, desc] = await Promise.all([
       supabase.from("customers").select("id,nombre,apellido,telefono").eq("user_id", userId).order("created_at", { ascending: false }),
-      supabase.from("products").select("id,nombre,codigo,precio_venta,precio_compra,precio_oferta,oferta_activa,control_inventario,cantidad,imagen_url,categoria").eq("user_id", userId).order("nombre", { ascending: true }),
+      supabase.from("products").select("id,nombre,codigo,precio_venta,precio_compra,precio_oferta,oferta_activa,control_inventario,cantidad,imagen_url,categoria,es_combo").eq("user_id", userId).order("nombre", { ascending: true }),
       supabase.from("perfiles").select("nombre_tienda,telefono,logo_url,direccion,copias_ticket").eq("user_id", userId).single(),
       supabase.from("discounts").select("id,nombre,tipo,valor").eq("user_id", userId).eq("activo", true).order("nombre"),
     ]);
