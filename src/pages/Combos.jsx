@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import imageCompression from "browser-image-compression";
-import { Search, X, Package2, Boxes, Upload, Plus } from "lucide-react";
+import { Search, X, Package2, Boxes, Upload, Plus, Pencil, Undo2 } from "lucide-react";
 
 export default function Combos() {
     const [tab, setTab] = useState("crear"); // crear | mis
@@ -29,6 +29,17 @@ export default function Combos() {
     const [armarCantidad, setArmarCantidad] = useState("1");
     const [armando, setArmando] = useState(false);
     const [armarMsg, setArmarMsg] = useState("");
+
+    const [desarmarId, setDesarmarId] = useState(null);
+    const [desarmarCantidad, setDesarmarCantidad] = useState("1");
+    const [desarmando, setDesarmando] = useState(false);
+    const [desarmarMsg, setDesarmarMsg] = useState("");
+
+    const [editando, setEditando] = useState(null); // combo siendo editado
+    const [editForm, setEditForm] = useState(null);
+    const [editUploading, setEditUploading] = useState(false);
+    const [editSaving, setEditSaving] = useState(false);
+    const [editMsg, setEditMsg] = useState("");
 
     const loadData = async () => {
         setLoading(true);
@@ -162,6 +173,78 @@ export default function Combos() {
         setArmando(false);
         if (error) { setArmarMsg(error.message); return; }
         setArmarId(null);
+        loadData();
+    };
+
+    const abrirDesarmar = (combo) => {
+        setDesarmarId(combo.id);
+        setDesarmarCantidad("1");
+        setDesarmarMsg("");
+    };
+
+    const confirmarDesarmar = async (combo) => {
+        setDesarmarMsg("");
+        const cant = Number(desarmarCantidad);
+        if (!cant || cant <= 0) return setDesarmarMsg("Cantidad inválida.");
+        setDesarmando(true);
+        const { error } = await supabase.rpc("desarmar_combo", {
+            p_combo_product_id: combo.id,
+            p_cantidad: cant,
+        });
+        setDesarmando(false);
+        if (error) { setDesarmarMsg(error.message); return; }
+        setDesarmarId(null);
+        loadData();
+    };
+
+    const abrirEditar = (combo) => {
+        setEditMsg("");
+        setEditando(combo.id);
+        setEditForm({
+            nombre: combo.nombre ?? "", codigo: combo.codigo ?? "",
+            categoria: combo.categoria ?? "", precio_venta: String(combo.precio_venta ?? ""),
+            precio_compra: String(combo.precio_compra ?? ""), imagen_url: combo.imagen_url ?? "",
+        });
+    };
+
+    const subirImagenEdit = async (file) => {
+        setEditUploading(true);
+        try {
+            const opciones = { maxSizeMB: 0.3, maxWidthOrHeight: 800, useWebWorker: true, fileType: "image/webp" };
+            const compressed = await imageCompression(file, opciones);
+            const fileName = `combo_${Date.now()}.webp`;
+            const { error } = await supabase.storage.from("imagen").upload(fileName, compressed, { upsert: true, contentType: "image/webp" });
+            if (error) throw error;
+            const { data } = supabase.storage.from("imagen").getPublicUrl(fileName);
+            setEditForm((prev) => ({ ...prev, imagen_url: data.publicUrl }));
+        } catch (err) {
+            setEditMsg("No se pudo subir la imagen: " + err.message);
+        }
+        setEditUploading(false);
+    };
+
+    const guardarEdicion = async () => {
+        setEditMsg("");
+        if (!editForm.nombre.trim() || !editForm.codigo.trim()) return setEditMsg("Pon nombre y código.");
+        const pv = Number(editForm.precio_venta);
+        const pc = Number(editForm.precio_compra);
+        if (Number.isNaN(pv) || pv < 0) return setEditMsg("Precio de venta inválido.");
+        if (Number.isNaN(pc) || pc < 0) return setEditMsg("Precio de compra inválido.");
+
+        setEditSaving(true);
+        const { error } = await supabase.from("products").update({
+            nombre: editForm.nombre.trim(), codigo: editForm.codigo.trim(),
+            categoria: editForm.categoria.trim() || null,
+            precio_venta: pv, precio_compra: pc,
+            imagen_url: editForm.imagen_url.trim() || null,
+        }).eq("id", editando);
+        setEditSaving(false);
+
+        if (error) {
+            setEditMsg(String(error.message).toLowerCase().includes("duplicate") ? "Ese código ya existe." : error.message);
+            return;
+        }
+        setEditando(null);
         loadData();
     };
 
@@ -356,10 +439,22 @@ export default function Combos() {
                                         {recetaDe(c.id).map((it) => productosById[it.component_product_id]?.nombre ?? "").filter(Boolean).join(" + ")}
                                     </p>
                                 </div>
-                                <button onClick={() => abrirArmar(c)}
-                                    className="flex items-center gap-1 text-xs font-semibold text-gray-900 border border-gray-200 rounded-xl px-3 py-2 flex-shrink-0">
-                                    <Plus size={14} /> Armar más
-                                </button>
+                                <div className="flex flex-col gap-1.5 flex-shrink-0">
+                                    <button onClick={() => abrirArmar(c)}
+                                        className="flex items-center gap-1 text-xs font-semibold text-gray-900 border border-gray-200 rounded-xl px-3 py-2">
+                                        <Plus size={14} /> Armar más
+                                    </button>
+                                    <div className="flex gap-1.5">
+                                        <button onClick={() => abrirEditar(c)}
+                                            className="flex-1 flex items-center justify-center gap-1 text-xs text-gray-600 border border-gray-100 rounded-xl px-2 py-1.5">
+                                            <Pencil size={12} /> Editar
+                                        </button>
+                                        <button onClick={() => abrirDesarmar(c)} disabled={(c.cantidad ?? 0) <= 0}
+                                            className="flex-1 flex items-center justify-center gap-1 text-xs text-gray-600 border border-gray-100 rounded-xl px-2 py-1.5 disabled:opacity-40">
+                                            <Undo2 size={12} /> Desarmar
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
 
                             {armarId === c.id && (
@@ -381,8 +476,119 @@ export default function Combos() {
                             {armarId === c.id && armarMsg && (
                                 <p className="text-xs text-red-500 mt-2">{armarMsg}</p>
                             )}
+
+                            {desarmarId === c.id && (
+                                <div className="mt-3 pt-3 border-t border-gray-100">
+                                    <p className="text-[11px] text-gray-400 mb-2">
+                                        Resta stock al combo y devuelve las unidades a cada producto base.
+                                    </p>
+                                    <div className="flex items-center gap-2">
+                                        <input
+                                            className="flex-1 border border-gray-100 rounded-xl p-2.5 text-sm focus:outline-none focus:border-gray-300"
+                                            placeholder="Cantidad a desarmar" inputMode="decimal"
+                                            value={desarmarCantidad} onChange={(e) => setDesarmarCantidad(e.target.value)}
+                                        />
+                                        <button disabled={desarmando} onClick={() => confirmarDesarmar(c)}
+                                            className="bg-gray-900 text-white text-xs font-semibold rounded-xl px-4 py-2.5 disabled:opacity-50">
+                                            {desarmando ? "Desarmando..." : "Confirmar"}
+                                        </button>
+                                        <button onClick={() => setDesarmarId(null)} className="text-gray-400">
+                                            <X size={16} />
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
+                            {desarmarId === c.id && desarmarMsg && (
+                                <p className="text-xs text-red-500 mt-2">{desarmarMsg}</p>
+                            )}
                         </div>
                     ))}
+                </div>
+            )}
+
+            {editando && editForm && (
+                <div className="fixed inset-0 bg-black/40 flex items-end lg:items-center justify-center z-50">
+                    <div className="bg-white w-full lg:w-[480px] lg:rounded-3xl rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
+                        <div className="flex items-center justify-between mb-4">
+                            <h2 className="text-base font-bold text-gray-900">Editar combo</h2>
+                            <button onClick={() => setEditando(null)}
+                                className="w-8 h-8 grid place-items-center rounded-xl border border-gray-100">
+                                <X size={14} />
+                            </button>
+                        </div>
+
+                        {editMsg && <div className="mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl p-3">{editMsg}</div>}
+
+                        <div className="space-y-3">
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Imagen</label>
+                                {editForm.imagen_url.trim() ? (
+                                    <div className="relative">
+                                        <img src={editForm.imagen_url} alt="Vista previa"
+                                            className="w-full h-40 object-cover rounded-xl border border-gray-100"
+                                            onError={(e) => (e.target.style.display = "none")} />
+                                        <button type="button" onClick={() => setEditForm({ ...editForm, imagen_url: "" })}
+                                            className="absolute top-2 right-2 w-7 h-7 bg-black/50 text-white rounded-lg flex items-center justify-center">
+                                            <X size={12} />
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <label className={`flex items-center justify-center gap-2 w-full border border-dashed border-gray-200 rounded-xl p-4 cursor-pointer text-sm text-gray-400 hover:bg-gray-50 transition ${editUploading ? "opacity-50" : ""}`}>
+                                        <Upload size={14} />
+                                        {editUploading ? "Subiendo..." : "Subir foto"}
+                                        <input type="file" accept="image/*" className="hidden" disabled={editUploading}
+                                            onChange={(e) => e.target.files[0] && subirImagenEdit(e.target.files[0])} />
+                                    </label>
+                                )}
+                            </div>
+
+                            <div>
+                                <label className="text-xs text-gray-500 mb-1 block">Nombre *</label>
+                                <input className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                                    value={editForm.nombre} onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })} />
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Código *</label>
+                                    <input className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                                        value={editForm.codigo} onChange={(e) => setEditForm({ ...editForm, codigo: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Categoría</label>
+                                    <input className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                                        value={editForm.categoria} onChange={(e) => setEditForm({ ...editForm, categoria: e.target.value })} />
+                                </div>
+                            </div>
+
+                            <div className="grid grid-cols-2 gap-3">
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Precio venta *</label>
+                                    <input className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                                        inputMode="decimal" value={editForm.precio_venta}
+                                        onChange={(e) => setEditForm({ ...editForm, precio_venta: e.target.value })} />
+                                </div>
+                                <div>
+                                    <label className="text-xs text-gray-500 mb-1 block">Precio compra *</label>
+                                    <input className="w-full border border-gray-100 rounded-xl p-3 text-sm focus:outline-none focus:border-gray-300"
+                                        inputMode="decimal" value={editForm.precio_compra}
+                                        onChange={(e) => setEditForm({ ...editForm, precio_compra: e.target.value })} />
+                                    <p className="text-[10px] text-gray-400 mt-1">Se recalcula solo al "Armar más".</p>
+                                </div>
+                            </div>
+
+                            <div className="flex gap-3 pt-2">
+                                <button type="button" onClick={() => setEditando(null)}
+                                    className="flex-1 py-3 border border-gray-100 rounded-xl text-sm text-gray-600">
+                                    Cancelar
+                                </button>
+                                <button type="button" disabled={editSaving} onClick={guardarEdicion}
+                                    className="flex-1 py-3 bg-gray-900 text-white rounded-xl text-sm font-semibold disabled:opacity-50">
+                                    {editSaving ? "Guardando..." : "Guardar"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             )}
         </div>
