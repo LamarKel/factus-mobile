@@ -82,7 +82,8 @@ export default function Facturas() {
       .select(`
         id, created_at, tipo_pago, status,
         total, total_pagado, pendiente, total_ganancia, total_costo,
-        customer:customers(id, nombre, apellido, telefono)
+        customer:customers(id, nombre, apellido, telefono),
+        items:invoice_items(nombre_producto_snapshot, codigo_snapshot)
       `)
       .order("created_at", { ascending: false });
 
@@ -98,7 +99,10 @@ export default function Facturas() {
       const cliente = f.customer
         ? `${f.customer.nombre ?? ""} ${f.customer.apellido ?? ""} ${f.customer.telefono ?? ""}`
         : "consumidor final";
-      const matchSearch = !s || `${cliente} ${f.tipo_pago} ${f.status} ${String(f.id).slice(0, 8)}`.toLowerCase().includes(s);
+      const productos = (f.items ?? [])
+        .map((it) => `${it.nombre_producto_snapshot ?? ""} ${it.codigo_snapshot ?? ""}`)
+        .join(" ");
+      const matchSearch = !s || `${cliente} ${f.tipo_pago} ${f.status} ${String(f.id).slice(0, 8)} ${productos}`.toLowerCase().includes(s);
       const matchStatus = filtroStatus === "todas" || f.status === filtroStatus;
       return matchSearch && matchStatus;
     });
@@ -192,7 +196,7 @@ export default function Facturas() {
         <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
         <input
           className="w-full pl-9 pr-3 py-2.5 border border-gray-100 rounded-xl text-sm bg-white focus:outline-none focus:border-gray-300"
-          placeholder="Buscar por cliente, estado o ID..."
+          placeholder="Buscar por cliente, producto, estado o ID..."
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
