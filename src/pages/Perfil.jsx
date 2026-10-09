@@ -2,7 +2,8 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import imageCompression from "browser-image-compression";
-import { Upload, Link, Copy, Check, Store, Printer } from "lucide-react";
+import { QRCodeCanvas } from "qrcode.react";
+import { Upload, Link, Copy, Check, Store, Printer, Download } from "lucide-react";
 
 export default function Perfil() {
     const navigate = useNavigate();
@@ -84,12 +85,23 @@ export default function Perfil() {
     };
 
     const copiarLink = () => {
-        navigator.clipboard.writeText(`${window.location.origin}/catalogo/${userId}`);
+        navigator.clipboard.writeText(catalogoUrl);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
     };
 
-    const catalogoUrl = `${window.location.origin}/catalogo/${userId}`;
+    // En la app Android el origin es https://localhost; VITE_PUBLIC_URL apunta al dominio de Netlify
+    const baseUrl = (import.meta.env.VITE_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
+    const catalogoUrl = `${baseUrl}/catalogo/${userId}`;
+
+    const descargarQR = () => {
+        const canvas = document.getElementById("qr-catalogo");
+        if (!canvas) return;
+        const a = document.createElement("a");
+        a.href = canvas.toDataURL("image/png");
+        a.download = `qr-catalogo-${(form.nombre_tienda || "tienda").trim().replace(/\s+/g, "-").toLowerCase()}.png`;
+        a.click();
+    };
 
     if (loading) return (
         <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>
@@ -229,6 +241,23 @@ export default function Perfil() {
                     >
                         Ver catálogo →
                     </button>
+
+                    {/* Código QR */}
+                    <div className="mt-4 pt-4 border-t border-gray-100 flex flex-col items-center">
+                        <p className="text-xs text-gray-500 font-medium mb-3 self-start">Código QR del catálogo</p>
+                        <div className="p-3 bg-white border border-gray-100 rounded-2xl">
+                            <QRCodeCanvas id="qr-catalogo" value={catalogoUrl} size={180} marginSize={2} level="M" />
+                        </div>
+                        <p className="text-[10px] text-gray-400 mt-2 text-center">
+                            Tus clientes pueden escanearlo para abrir el catálogo
+                        </p>
+                        <button
+                            onClick={descargarQR}
+                            className="w-full mt-3 flex items-center justify-center gap-1.5 py-2.5 border border-gray-100 rounded-xl text-xs text-gray-600 hover:bg-gray-50 transition"
+                        >
+                            <Download size={12} /> Descargar QR
+                        </button>
+                    </div>
                 </div>
             )}
 
