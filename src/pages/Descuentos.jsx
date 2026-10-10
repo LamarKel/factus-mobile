@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Plus, X, Percent, Tag } from "lucide-react";
+import { SkeletonPagina } from "../components/Skeletons";
 
 const emptyForm = { nombre: "", tipo: "porcentaje", valor: "" };
 
@@ -66,9 +67,7 @@ export default function Descuentos() {
     const activos = descuentos.filter((d) => d.activo);
     const inactivos = descuentos.filter((d) => !d.activo);
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>
-    );
+    if (loading) return <SkeletonPagina ancho="max-w-2xl" filas={4} />;
 
     return (
         <div className="p-4 lg:p-6 max-w-2xl mx-auto pb-24">
