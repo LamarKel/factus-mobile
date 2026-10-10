@@ -3,6 +3,7 @@ import { supabase } from "../lib/supabase";
 import imageCompression from "browser-image-compression";
 import ScannerModal from "../components/ScannerModal";
 import { Search, Plus, X, Package, Scan, Upload } from "lucide-react";
+import { SkeletonLista } from "../components/Skeletons";
 
 const emptyForm = {
   nombre: "", codigo: "", referencia: "", unidad_medida: "",
@@ -166,7 +167,7 @@ export default function Productos() {
 
       {/* ── Lista ── */}
       {loading ? (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Cargando...</div>
+        <SkeletonLista />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">

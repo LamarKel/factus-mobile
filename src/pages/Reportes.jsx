@@ -5,6 +5,7 @@ import { supabase } from "../lib/supabase";
 import { tieneImpresoraConfigurada, imprimirBytes, cargarImagen } from "../lib/bluetoothPrinter";
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } from "recharts";
 import { RefreshCw, Package, TrendingUp, AlertTriangle, DollarSign, Wallet, Printer, Save } from "lucide-react";
+import { SkeletonGrafica } from "../components/Skeletons";
 
 function fmtMoney(n) {
     return `RD$ ${Number(n ?? 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -606,7 +607,7 @@ export default function Reportes() {
                     <div className="bg-white border border-gray-100 rounded-2xl p-4">
                         <p className="text-xs font-semibold text-gray-900 mb-4">Ganancia por día</p>
                         {loadingChart ? (
-                            <div className="h-48 flex items-center justify-center text-gray-300 text-sm">Cargando...</div>
+                            <SkeletonGrafica />
                         ) : chartData.length === 0 ? (
                             <div className="h-48 flex items-center justify-center text-gray-300 text-sm">Sin datos en este período</div>
                         ) : (

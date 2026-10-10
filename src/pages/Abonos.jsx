@@ -5,6 +5,7 @@ import { tieneImpresoraConfigurada, imprimirBytes } from "../lib/bluetoothPrinte
 import { buildEscPosAbono } from "../lib/ticket";
 import AbonoPrintable from "../components/AbonoPrintable";
 import { RefreshCw, Search, X, Wallet, Printer, Check } from "lucide-react";
+import { SkeletonLista } from "../components/Skeletons";
 
 function fmtMoney(n) {
   return `RD$ ${Number(n ?? 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -173,7 +174,7 @@ export default function Abonos() {
 
       {/* ── Lista ── */}
       {loading ? (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Cargando...</div>
+        <SkeletonLista />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-12 h-12 bg-green-50 rounded-2xl flex items-center justify-center mb-3">

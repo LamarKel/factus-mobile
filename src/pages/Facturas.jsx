@@ -6,6 +6,7 @@ import { tieneImpresoraConfigurada, imprimirBytes } from "../lib/bluetoothPrinte
 import { buildEscPosTicket } from "../lib/ticket";
 import TicketPrintable from "../components/TicketPrintable";
 import { RefreshCw, Search, X, ChevronRight, Printer } from "lucide-react";
+import { SkeletonLista, SkeletonFilas } from "../components/Skeletons";
 
 function fmtMoney(n) {
   return `RD$ ${Number(n ?? 0).toLocaleString("es-DO", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -227,7 +228,7 @@ export default function Facturas() {
 
       {/* ── Lista de facturas ── */}
       {loading ? (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Cargando...</div>
+        <SkeletonLista avatar={false} />
       ) : filtered.length === 0 ? (
         <p className="text-center text-gray-400 text-sm py-12">No hay facturas.</p>
       ) : (
@@ -375,7 +376,7 @@ export default function Facturas() {
             <div className="mb-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Productos</p>
               {detailLoading ? (
-                <p className="text-sm text-gray-400">Cargando...</p>
+                <SkeletonFilas filas={3} />
               ) : items.length === 0 ? (
                 <p className="text-sm text-gray-400">Sin productos.</p>
               ) : (
@@ -399,7 +400,7 @@ export default function Facturas() {
             <div className="mb-4">
               <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Abonos</p>
               {detailLoading ? (
-                <p className="text-sm text-gray-400">Cargando...</p>
+                <SkeletonFilas filas={1} />
               ) : payments.length === 0 ? (
                 <p className="text-sm text-gray-400">Sin abonos registrados.</p>
               ) : (

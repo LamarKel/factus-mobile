@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import { Search, X, TrendingUp, TrendingDown, ShoppingBag } from "lucide-react";
+import { SkeletonPagina } from "../components/Skeletons";
 
 export default function Comprar() {
     const [productos, setProductos] = useState([]);
@@ -93,9 +94,7 @@ export default function Comprar() {
         loadData();
     };
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>
-    );
+    if (loading) return <SkeletonPagina />;
 
     return (
         <div className="p-4 lg:p-6 max-w-5xl mx-auto pb-28">

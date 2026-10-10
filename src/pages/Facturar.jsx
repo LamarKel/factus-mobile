@@ -6,6 +6,7 @@ import { tieneImpresoraConfigurada, imprimirBytes } from "../lib/bluetoothPrinte
 import { buildEscPosTicket } from "../lib/ticket";
 import TicketPrintable from "../components/TicketPrintable";
 import { ShoppingCart, Search, X, Printer, FileText, Scan, Tag } from "lucide-react";
+import { SkeletonFacturar } from "../components/Skeletons";
 
 // ── Card de producto ─────────────────────────────────────
 const ProductCard = ({ p, onAdd, inCart }) => {
@@ -273,7 +274,7 @@ export default function Facturar() {
     loadData();
   };
 
-  if (loading) return <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>;
+  if (loading) return <SkeletonFacturar />;
 
   // ── Panel del carrito ──
   const CarritoPanel = () => (

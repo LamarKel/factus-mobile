@@ -5,6 +5,7 @@ import {
   BarChart, Bar, XAxis, YAxis, Tooltip,
   ResponsiveContainer, CartesianGrid
 } from "recharts";
+import { SkeletonGrafica } from "../components/Skeletons";
 
 // ── Helpers de fecha ─────────────────────────────────────
 function fmtMoney(n) {
@@ -327,9 +328,7 @@ export default function Dashboard() {
       <div className="bg-white border border-gray-100 rounded-2xl p-4">
         <p className="text-sm font-medium text-gray-900 mb-4">Ventas por día</p>
         {loadingChart ? (
-          <div className="h-48 flex items-center justify-center text-gray-300 text-sm">
-            Cargando gráfica...
-          </div>
+          <SkeletonGrafica />
         ) : chartData.length === 0 ? (
           <div className="h-48 flex items-center justify-center text-gray-300 text-sm">
             No hay ventas en este período

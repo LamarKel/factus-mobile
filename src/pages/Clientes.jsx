@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { Search, Plus, X, Phone, MapPin, CreditCard, User } from "lucide-react";
+import { SkeletonLista } from "../components/Skeletons";
 
 const emptyForm = {
   nombre: "", apellido: "", telefono: "",
@@ -128,7 +129,7 @@ export default function Clientes() {
 
       {/* ── Lista ── */}
       {loading ? (
-        <div className="flex items-center justify-center h-32 text-gray-400 text-sm">Cargando...</div>
+        <SkeletonLista />
       ) : filtered.length === 0 ? (
         <div className="flex flex-col items-center justify-center py-16 text-center">
           <div className="w-12 h-12 bg-gray-100 rounded-2xl flex items-center justify-center mb-3">

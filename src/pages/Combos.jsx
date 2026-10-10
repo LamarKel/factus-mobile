@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "../lib/supabase";
 import imageCompression from "browser-image-compression";
 import { Search, X, Package2, Boxes, Upload, Plus, Pencil, Undo2 } from "lucide-react";
+import { SkeletonPagina } from "../components/Skeletons";
 
 export default function Combos() {
     const [tab, setTab] = useState("crear"); // crear | mis
@@ -248,9 +249,7 @@ export default function Combos() {
         loadData();
     };
 
-    if (loading) return (
-        <div className="flex items-center justify-center h-64 text-gray-400 text-sm">Cargando...</div>
-    );
+    if (loading) return <SkeletonPagina />;
 
     return (
         <div className="p-4 lg:p-6 max-w-5xl mx-auto pb-28">
