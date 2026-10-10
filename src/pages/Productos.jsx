@@ -320,7 +320,7 @@ export default function Productos() {
       {/* ── MODAL FORMULARIO ── */}
       {showForm && (
         <div className="fixed inset-0 bg-black/40 flex items-end lg:items-center justify-center z-50">
-          <div className="bg-white w-full lg:w-[560px] lg:rounded-3xl rounded-t-3xl p-5 max-h-[90vh] overflow-y-auto">
+          <div className="bg-white w-full lg:w-[900px] lg:max-w-[95vw] lg:rounded-3xl rounded-t-3xl p-5 lg:p-6 max-h-[90vh] overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-base font-bold text-gray-900">
                 {editing ? "Editar producto" : "Nuevo producto"}
@@ -333,7 +333,8 @@ export default function Productos() {
 
             {msg && <div className="mb-3 text-xs text-red-500 bg-red-50 border border-red-100 rounded-xl p-3">{msg}</div>}
 
-            <form onSubmit={handleSubmit} className="space-y-3">
+            <form onSubmit={handleSubmit} className="space-y-3 lg:space-y-0 lg:grid lg:grid-cols-2 lg:gap-x-6 lg:gap-y-4">
+              <div className="space-y-3">
 
               {/* Código + scanner */}
               <div className="flex gap-2">
@@ -423,7 +424,9 @@ export default function Productos() {
                   </div>
                 )}
               </div>
+              </div>
 
+              <div className="space-y-3">
               {/* Precios */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
@@ -495,8 +498,9 @@ export default function Productos() {
                     onChange={(e) => setForm({ ...form, cantidad: e.target.value })} />
                 </div>
               )}
+              </div>
 
-              <div className="flex gap-3 pt-2">
+              <div className="flex gap-3 pt-2 lg:col-span-2">
                 <button type="button" onClick={() => { setShowForm(false); resetForm(); }}
                   className="flex-1 py-3 border border-gray-100 rounded-xl text-sm text-gray-600">
                   Cancelar
