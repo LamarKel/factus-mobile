@@ -140,6 +140,78 @@ function Filtros({ categorias, categoriaActiva, setCategoriaActiva, conteoCat, p
     );
 }
 
+function CatalogoSkeleton() {
+    return (
+        <div className="min-h-screen bg-gray-50 animate-pulse">
+            {/* Header */}
+            <div className="h-14 bg-white border-b border-gray-100">
+                <div className="max-w-6xl mx-auto px-4 lg:px-8 h-full flex items-center justify-between">
+                    <div className="flex items-center gap-2.5">
+                        <div className="w-8 h-8 rounded-lg bg-gray-200" />
+                        <div className="h-4 w-28 rounded bg-gray-200" />
+                    </div>
+                    <div className="flex gap-2">
+                        <div className="w-8 h-8 rounded-full bg-gray-100" />
+                        <div className="w-8 h-8 rounded-full bg-gray-100" />
+                    </div>
+                </div>
+            </div>
+
+            <div className="max-w-6xl mx-auto px-4 lg:px-8">
+                {/* Portada */}
+                <div className="mt-4 lg:mt-6 rounded-2xl bg-gray-100 grid lg:grid-cols-2 overflow-hidden">
+                    <div className="p-6 lg:p-10 space-y-3 order-2 lg:order-1">
+                        <div className="h-2.5 w-32 rounded bg-gray-200" />
+                        <div className="h-8 w-3/4 rounded bg-gray-200" />
+                        <div className="h-3 w-full max-w-sm rounded bg-gray-200" />
+                        <div className="h-3 w-2/3 max-w-xs rounded bg-gray-200" />
+                    </div>
+                    <div className="aspect-[16/10] lg:aspect-auto lg:min-h-[320px] bg-gray-200/60 order-1 lg:order-2" />
+                </div>
+
+                {/* Categorías */}
+                <div className="mt-6 flex gap-4 overflow-hidden">
+                    {Array.from({ length: 6 }).map((_, i) => (
+                        <div key={i} className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16">
+                            <div className="w-14 h-14 rounded-full bg-white border border-gray-100" />
+                            <div className="h-2.5 w-10 rounded bg-gray-200" />
+                        </div>
+                    ))}
+                </div>
+
+                {/* Buscador */}
+                <div className="mt-4 h-10 lg:max-w-md rounded-xl bg-white border border-gray-100" />
+
+                <div className="mt-6 lg:mt-8 lg:grid lg:grid-cols-[200px_1fr] lg:gap-10">
+                    {/* Filtros escritorio */}
+                    <div className="hidden lg:block space-y-3">
+                        <div className="h-4 w-24 rounded bg-gray-200" />
+                        {Array.from({ length: 5 }).map((_, i) => (
+                            <div key={i} className="h-3 w-full rounded bg-gray-100" />
+                        ))}
+                    </div>
+
+                    <div>
+                        <div className="h-6 w-48 rounded bg-gray-200" />
+                        <div className="h-3 w-32 rounded bg-gray-100 mt-2 mb-4" />
+                        {/* Tarjetas */}
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-6 lg:gap-x-5">
+                            {Array.from({ length: 6 }).map((_, i) => (
+                                <div key={i}>
+                                    <div className="aspect-square rounded-xl bg-white border border-gray-100" />
+                                    <div className="h-3 w-3/4 rounded bg-gray-200 mt-2.5" />
+                                    <div className="h-2.5 w-1/2 rounded bg-gray-100 mt-1.5" />
+                                    <div className="h-3.5 w-1/3 rounded bg-gray-200 mt-2" />
+                                </div>
+                            ))}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+}
+
 export default function Catalogo() {
     const { userId } = useParams();
     const [searchParams, setSearchParams] = useSearchParams();
@@ -434,6 +506,8 @@ export default function Catalogo() {
         </div>
     );
 
+    if (loading) return <CatalogoSkeleton />;
+
     // ── Vista detalle ──
     if (detalle) {
         const disponible = esDisponible(detalle);
@@ -664,9 +738,7 @@ export default function Catalogo() {
                             )}
                         </div>
 
-                        {loading ? (
-                            <div className="py-16 text-center text-gray-400 text-sm">Cargando catálogo...</div>
-                        ) : filtered.length === 0 ? (
+                        {filtered.length === 0 ? (
                             <div className="py-16 text-center">
                                 <p className="text-gray-400 text-sm">{soloFavoritos ? "Aún no tienes favoritos." : "No se encontraron productos."}</p>
                                 {hayFiltros && <button onClick={limpiarFiltros} className="mt-2 text-xs text-gray-700 underline">Restablecer filtros</button>}
