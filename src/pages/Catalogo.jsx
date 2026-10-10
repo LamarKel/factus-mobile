@@ -17,6 +17,8 @@ const esDisponible = (p) => !p.proximamente && !esAgotado(p);
 const ordenEstado = (p) => (p.proximamente ? 1 : esAgotado(p) ? 2 : 0);
 const esNuevo = (p) => p.created_at && Date.now() - new Date(p.created_at).getTime() < DIAS_NUEVO * 86400000;
 
+const ES_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 const leerFavoritos = (userId) => {
     try { return JSON.parse(localStorage.getItem(`favoritos_${userId}`) ?? "[]"); } catch { return []; }
 };
@@ -214,7 +216,9 @@ function CatalogoSkeleton({ style }) {
 }
 
 export default function Catalogo() {
-    const { userId } = useParams();
+    // El parámetro puede ser el user_id (links viejos) o el slug de la tienda
+    const { userId: idOSlug } = useParams();
+    const [userId, setUserId] = useState(null);
     const [searchParams, setSearchParams] = useSearchParams();
     const codigoDetalle = searchParams.get("p");
 
@@ -239,33 +243,37 @@ export default function Catalogo() {
     const [soloFavoritos, setSoloFavoritos] = useState(false);
     const [visibles, setVisibles] = useState(POR_PAGINA);
     const finListaRef = useRef(null);
-    const [favoritos, setFavoritos] = useState(() => leerFavoritos(userId));
+    const [favoritos, setFavoritos] = useState([]);
     const [zoomImg, setZoomImg] = useState(null);
     const [qtySel, setQtySel] = useState({ codigo: null, n: 1 });
     const qtyDetalle = qtySel.codigo === codigoDetalle ? qtySel.n : 1;
     const setQtyDetalle = (fn) => setQtySel({ codigo: codigoDetalle, n: fn(qtyDetalle) });
 
     useEffect(() => {
-        if (!userId) return;
+        if (!idOSlug) return;
         const fetchData = async () => {
             const { data: perfilData } = await supabase
                 .from("perfiles")
-                .select("nombre_tienda, telefono, logo_url, direccion, tema_catalogo")
-                .eq("user_id", userId)
-                .single();
-            if (perfilData) setPerfil(perfilData);
+                .select("user_id, nombre_tienda, telefono, logo_url, direccion, tema_catalogo")
+                .eq(ES_UUID.test(idOSlug) ? "user_id" : "slug", idOSlug.toLowerCase())
+                .maybeSingle();
+
+            if (!perfilData) { setLoading(false); return; }
+            setPerfil(perfilData);
+            setUserId(perfilData.user_id);
+            setFavoritos(leerFavoritos(perfilData.user_id));
 
             const { data: productosData, error } = await supabase
                 .from("products")
                 .select("nombre, codigo, unidad_medida, precio_venta, precio_oferta, oferta_activa, control_inventario, cantidad, imagen_url, categoria, ventas, proximamente, created_at")
-                .eq("user_id", userId)
+                .eq("user_id", perfilData.user_id)
                 .order("created_at", { ascending: false });
 
             if (!error) setProductos(productosData ?? []);
             setLoading(false);
         };
         fetchData();
-    }, [userId]);
+    }, [idOSlug]);
 
     // Carga automática: al acercarse al final de la lista, mostrar más productos
     useEffect(() => {
@@ -528,6 +536,16 @@ export default function Catalogo() {
     );
 
     if (loading) return <CatalogoSkeleton style={temaStyle} />;
+
+    if (!perfil) return (
+        <div className="min-h-screen bg-cat-bg grid place-items-center p-6 text-center" style={temaStyle}>
+            <div>
+                <Package size={36} className="text-cat-border mx-auto mb-3" />
+                <p className="font-serif text-2xl text-cat-text">Catálogo no encontrado</p>
+                <p className="text-sm text-cat-muted mt-1">Revisa que el link esté bien escrito.</p>
+            </div>
+        </div>
+    );
 
     // ── Vista detalle ──
     if (detalle) {
