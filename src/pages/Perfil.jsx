@@ -9,6 +9,11 @@ import {
     paletaDesdeColor, avisosContraste, coloresAParam, leerTemaGuardado,
 } from "../lib/temasCatalogo";
 
+// "Retro Mini Fragancias" -> "retro-mini-fragancias"
+const aSlug = (texto) => texto
+    .normalize("NFD").replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 40);
+
 // Colores base de un tema (sin el nombre)
 const baseDeTema = (id) => Object.fromEntries(COLORES_EDITABLES.map(({ key }) => [key, TEMAS_CATALOGO[id][key]]));
 
@@ -21,7 +26,8 @@ export default function Perfil() {
     const [msgType, setMsgType] = useState("error");
     const [userId, setUserId] = useState("");
     const [copied, setCopied] = useState(false);
-    // Apariencia del catálogo (solo vista previa por ahora, aún no se guarda)
+    const [slugGuardado, setSlugGuardado] = useState(null);
+    // Apariencia del catálogo
     const [tema, setTema] = useState(TEMA_DEFAULT); // id del tema o "personalizado"
     const [colores, setColores] = useState(() => baseDeTema(TEMA_DEFAULT));
     const [colorMarca, setColorMarca] = useState("#7c3aed");
@@ -44,7 +50,7 @@ export default function Perfil() {
     };
 
     const [form, setForm] = useState({
-        nombre_tienda: "", telefono: "", logo_url: "", direccion: "", copias_ticket: 1,
+        nombre_tienda: "", telefono: "", logo_url: "", direccion: "", copias_ticket: 1, slug: "",
     });
 
     useEffect(() => {
@@ -64,7 +70,9 @@ export default function Perfil() {
                     logo_url: data.logo_url ?? "",
                     direccion: data.direccion ?? "",
                     copias_ticket: data.copias_ticket ?? 1,
+                    slug: data.slug ?? "",
                 });
+                setSlugGuardado(data.slug ?? null);
                 const guardado = leerTemaGuardado(data.tema_catalogo);
                 if (guardado) {
                     setTema(guardado.tema);
@@ -102,8 +110,22 @@ export default function Perfil() {
         if (!form.nombre_tienda.trim()) {
             setMsgType("error"); return setMsg("El nombre de la tienda es obligatorio.");
         }
+        const slug = aSlug(form.slug);
+        if (slug && slug.length < 3) {
+            setMsgType("error"); return setMsg("El link debe tener al menos 3 letras o números.");
+        }
         setSaving(true);
         const { data: userData } = await supabase.auth.getUser();
+
+        if (slug) {
+            const { data: ocupado } = await supabase
+                .from("perfiles").select("user_id")
+                .eq("slug", slug).neq("user_id", userData.user.id).maybeSingle();
+            if (ocupado) {
+                setSaving(false);
+                setMsgType("error"); return setMsg(`El link "${slug}" ya lo usa otra tienda. Prueba con otro.`);
+            }
+        }
 
         const { error } = await supabase.from("perfiles").upsert({
             user_id: userData.user.id,
@@ -113,11 +135,18 @@ export default function Perfil() {
             direccion: form.direccion.trim() || null,
             copias_ticket: form.copias_ticket,
             tema_catalogo: { tema, colores, marca: colorMarca, oscuro: marcaOscuro },
+            slug: slug || null,
         }, { onConflict: "user_id" });
 
         setSaving(false);
-        if (error) { setMsgType("error"); setMsg(error.message); }
-        else { setMsgType("success"); setMsg("Perfil guardado correctamente."); }
+        if (error) {
+            setMsgType("error");
+            setMsg(error.code === "23505" ? `El link "${slug}" ya lo usa otra tienda. Prueba con otro.` : error.message);
+        } else {
+            setForm((prev) => ({ ...prev, slug }));
+            setSlugGuardado(slug || null);
+            setMsgType("success"); setMsg("Perfil guardado correctamente.");
+        }
     };
 
     const copiarLink = () => {
@@ -128,7 +157,9 @@ export default function Perfil() {
 
     // En la app Android el origin es https://localhost; VITE_PUBLIC_URL apunta al dominio de Netlify
     const baseUrl = (import.meta.env.VITE_PUBLIC_URL || window.location.origin).replace(/\/$/, "");
-    const catalogoUrl = `${baseUrl}/catalogo/${userId}`;
+    // Usa el link corto si ya está guardado; si no, el user_id (los links viejos siguen funcionando)
+    const catalogoUrl = `${baseUrl}/catalogo/${slugGuardado || userId}`;
+    const slugSugerido = aSlug(form.nombre_tienda);
 
     const descargarQR = () => {
         const canvas = document.getElementById("qr-catalogo");
@@ -259,6 +290,29 @@ export default function Perfil() {
                         <div className="flex items-center gap-2 mb-3">
                             <Link size={14} className="text-gray-400" />
                             <p className="text-xs text-gray-500 font-medium">Link de tu catálogo público</p>
+                        </div>
+
+                        {/* Nombre del link */}
+                        <label className="text-xs text-gray-500 mb-1.5 block">Nombre del link</label>
+                        <div className="flex items-center border border-gray-100 rounded-xl overflow-hidden focus-within:border-gray-300">
+                            <span className="pl-3 text-xs text-gray-400 whitespace-nowrap">/catalogo/</span>
+                            <input
+                                className="flex-1 min-w-0 py-3 pr-3 text-sm focus:outline-none"
+                                placeholder={slugSugerido || "mi-tienda"}
+                                value={form.slug}
+                                onChange={(e) => setForm({ ...form, slug: e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-").slice(0, 40) })}
+                            />
+                        </div>
+                        <div className="flex items-start justify-between gap-2 mt-1 mb-4">
+                            <p className="text-[10px] text-gray-400">
+                                Minúsculas, números y guiones. Se aplica al guardar. Los links y QR anteriores siguen funcionando.
+                            </p>
+                            {!form.slug && slugSugerido.length >= 3 && (
+                                <button type="button" onClick={() => setForm({ ...form, slug: slugSugerido })}
+                                    className="text-[10px] text-gray-700 underline whitespace-nowrap">
+                                    Usar "{slugSugerido}"
+                                </button>
+                            )}
                         </div>
 
                         {/* Preview del catálogo */}
