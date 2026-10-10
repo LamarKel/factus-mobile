@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import {
@@ -231,6 +231,7 @@ export default function Catalogo() {
     const [soloDisponibles, setSoloDisponibles] = useState(false);
     const [soloFavoritos, setSoloFavoritos] = useState(false);
     const [visibles, setVisibles] = useState(POR_PAGINA);
+    const finListaRef = useRef(null);
     const [favoritos, setFavoritos] = useState(() => leerFavoritos(userId));
     const [zoomImg, setZoomImg] = useState(null);
     const [qtySel, setQtySel] = useState({ codigo: null, n: 1 });
@@ -258,6 +259,18 @@ export default function Catalogo() {
         };
         fetchData();
     }, [userId]);
+
+    // Carga automática: al acercarse al final de la lista, mostrar más productos
+    useEffect(() => {
+        const el = finListaRef.current;
+        if (!el) return;
+        const observer = new IntersectionObserver(
+            ([entry]) => { if (entry.isIntersecting) setVisibles((v) => v + POR_PAGINA); },
+            { rootMargin: "600px" }
+        );
+        observer.observe(el);
+        return () => observer.disconnect();
+    }, [loading, codigoDetalle, visibles, productos.length, search, categoriaActiva, soloDisponibles, soloFavoritos, precioMin, precioMax, orden]);
 
     // Al abrir/cerrar el detalle, volver arriba
     useEffect(() => {
@@ -750,18 +763,19 @@ export default function Catalogo() {
                                         <ProductCard key={p.codigo} p={p} favorito={favoritos.includes(p.codigo)} {...cardProps} />
                                     ))}
                                 </div>
-                                <div className="mt-10 text-center">
-                                    <p className="text-xs text-gray-400">Has visto {mostrados.length} de {filtered.length} productos</p>
-                                    <div className="w-40 h-0.5 bg-gray-200 mx-auto mt-2 rounded-full overflow-hidden">
-                                        <div className="h-full bg-gray-900" style={{ width: `${(mostrados.length / filtered.length) * 100}%` }} />
+                                {mostrados.length < filtered.length ? (
+                                    <div ref={finListaRef} className="mt-6 grid grid-cols-2 sm:grid-cols-3 gap-x-3 gap-y-6 lg:gap-x-5 animate-pulse">
+                                        {Array.from({ length: 3 }).map((_, i) => (
+                                            <div key={i}>
+                                                <div className="aspect-square rounded-xl bg-white border border-gray-100" />
+                                                <div className="h-3 w-3/4 rounded bg-gray-200 mt-2.5" />
+                                                <div className="h-3.5 w-1/3 rounded bg-gray-200 mt-2" />
+                                            </div>
+                                        ))}
                                     </div>
-                                    {mostrados.length < filtered.length && (
-                                        <button onClick={() => setVisibles((v) => v + POR_PAGINA)}
-                                            className="mt-4 border border-gray-300 rounded-full px-5 py-2 text-xs text-gray-700 hover:bg-white">
-                                            Ver más
-                                        </button>
-                                    )}
-                                </div>
+                                ) : (
+                                    <p className="mt-10 text-center text-xs text-gray-400">Has visto los {filtered.length} productos</p>
+                                )}
                             </>
                         )}
                     </div>
