@@ -29,14 +29,37 @@ const WaIcon = ({ size = 18 }) => (
     </svg>
 );
 
-function ProductImage({ p, className = "" }) {
-    return p.imagen_url ? (
-        <img src={p.imagen_url} alt={p.nombre} loading="lazy"
-            className={`w-full h-full object-contain ${className}`}
-            onError={(e) => { e.target.style.display = "none"; }} />
-    ) : (
-        <Package size={36} className="text-cat-border" />
+// Imagen con spinner centrado mientras carga; aparece con un fundido al terminar
+function ImagenCarga({ src, alt, className = "", spinner = "md", claro = false, fallback = null }) {
+    const [estado, setEstado] = useState("cargando");
+    // Si la imagen ya estaba en caché, puede estar completa antes de que llegue onLoad
+    const revisarCache = (el) => {
+        if (el?.complete && el.naturalWidth > 0) setEstado((e) => (e === "cargando" ? "listo" : e));
+    };
+    if (estado === "error") return fallback;
+    const tam = spinner === "sm" ? "w-4 h-4 border-2" : spinner === "lg" ? "w-9 h-9 border-[3px]" : "w-6 h-6 border-2";
+    const colores = claro ? "border-white/25 border-t-white" : "border-cat-border border-t-cat-primary";
+    return (
+        <>
+            {estado === "cargando" && (
+                <span className="absolute inset-0 grid place-items-center pointer-events-none">
+                    <span className={`${tam} ${colores} rounded-full animate-spin`} />
+                </span>
+            )}
+            <img src={src} alt={alt} loading="lazy" ref={revisarCache}
+                onLoad={() => setEstado("listo")}
+                onError={() => setEstado("error")}
+                className={`transition-[opacity,transform] duration-300 ${estado === "listo" ? "opacity-100" : "opacity-0"} ${className}`} />
+        </>
     );
+}
+
+function ProductImage({ p, className = "" }) {
+    const sinFoto = <Package size={36} className="text-cat-border" />;
+    return p.imagen_url ? (
+        <ImagenCarga key={p.imagen_url} src={p.imagen_url} alt={p.nombre} fallback={sinFoto}
+            className={`w-full h-full object-contain ${className}`} />
+    ) : sinFoto;
 }
 
 function Badge({ p, topVentas }) {
@@ -69,7 +92,7 @@ function ProductCard({ p, topVentas, favorito, onFavorito, onAbrir, onAgregar })
             <div className="relative aspect-square bg-cat-surface border border-cat-border rounded-xl overflow-hidden cursor-pointer"
                 onClick={() => onAbrir(p)}>
                 <div className="absolute inset-0 flex items-center justify-center p-3">
-                    <ProductImage p={p} className="transition duration-300 group-hover:scale-[1.03]" />
+                    <ProductImage p={p} className="group-hover:scale-[1.03]" />
                 </div>
                 <div className="absolute top-2 left-2 [&>span]:text-[10px] [&>span]:font-medium [&>span]:px-2 [&>span]:py-0.5 [&>span]:rounded [&>span]:shadow-sm">
                     <Badge p={p} topVentas={topVentas} />
@@ -496,7 +519,7 @@ export default function Catalogo() {
                         <div className="space-y-3 mb-4 flex-1">
                             {productosEnCarrito.map((p) => (
                                 <div key={p.codigo} className="flex items-center gap-3">
-                                    <div className="w-16 h-16 rounded-xl bg-cat-surface border border-cat-border flex-shrink-0 overflow-hidden grid place-items-center p-1">
+                                    <div className="relative w-16 h-16 rounded-xl bg-cat-surface border border-cat-border flex-shrink-0 overflow-hidden grid place-items-center p-1">
                                         <ProductImage p={p} />
                                     </div>
                                     <div className="flex-1 min-w-0">
@@ -531,7 +554,10 @@ export default function Catalogo() {
             <button className="absolute top-4 right-4 w-9 h-9 bg-white/20 rounded-full flex items-center justify-center">
                 <X size={18} className="text-white" />
             </button>
-            <img src={zoomImg} alt="zoom" className="max-w-full max-h-[90vh] object-contain rounded-xl" />
+            <div className="relative min-w-[4rem] min-h-[4rem] flex items-center justify-center">
+                <ImagenCarga key={zoomImg} src={zoomImg} alt="zoom" spinner="lg" claro
+                    className="max-w-full max-h-[90vh] object-contain rounded-xl" />
+            </div>
         </div>
     );
 
@@ -706,9 +732,12 @@ export default function Catalogo() {
                             const activa = categoriaActiva === cat;
                             return (
                                 <button key={cat} onClick={() => setCategoriaActiva(cat)} className="flex flex-col items-center gap-1.5 flex-shrink-0 w-16">
-                                    <span className={`w-14 h-14 rounded-full overflow-hidden grid place-items-center border-2 transition ${activa ? "border-cat-primary" : "border-transparent"} ${cat === "Todo" ? (activa ? "bg-cat-primary text-cat-on-primary" : "bg-cat-surface text-cat-text2") : "bg-cat-surface"}`}>
+                                    <span className={`relative w-14 h-14 rounded-full overflow-hidden grid place-items-center border-2 transition ${activa ? "border-cat-primary" : "border-transparent"} ${cat === "Todo" ? (activa ? "bg-cat-primary text-cat-on-primary" : "bg-cat-surface text-cat-text2") : "bg-cat-surface"}`}>
                                         {cat === "Todo" ? <LayoutGrid size={18} /> : imagenCategoria[cat] ? (
-                                            <img src={imagenCategoria[cat]} alt={cat} className="w-full h-full object-contain p-1.5" />
+                                            <span className="relative w-full h-full">
+                                                <ImagenCarga key={imagenCategoria[cat]} src={imagenCategoria[cat]} alt={cat} spinner="sm"
+                                                    className="w-full h-full object-contain p-1.5" />
+                                            </span>
                                         ) : <span className="text-sm font-semibold text-cat-muted">{cat.slice(0, 1).toUpperCase()}</span>}
                                     </span>
                                     <span className={`text-[11px] leading-tight text-center line-clamp-2 ${activa ? "text-cat-text font-medium" : "text-cat-muted"}`}>{cat}</span>
