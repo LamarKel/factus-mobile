@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { useEffect, useState } from "react";
 
 import Login from "./pages/Login";
+import RestablecerContrasena from "./pages/RestablecerContrasena";
 import Dashboard from "./pages/Dashboard";
 import Clientes from "./pages/Clientes";
 import Productos from "./pages/Productos";
@@ -81,6 +82,7 @@ export default function App() {
     <BrowserRouter>
       <Routes>
         <Route path="/login" element={<Login />} />
+        <Route path="/restablecer" element={<RestablecerContrasena />} />
 
         <Route
           path="/"

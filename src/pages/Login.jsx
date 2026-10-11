@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
+import OlvideContrasena from "../components/OlvideContrasena";
 
 export default function Login() {
   const nav = useNavigate();
@@ -10,6 +11,7 @@ export default function Login() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPass, setShowPass] = useState(false);
+  const [olvide, setOlvide] = useState(false);
 
   const submit = async (e) => {
     e.preventDefault();
@@ -54,6 +56,9 @@ export default function Login() {
           <p className="text-sm text-gray-600">Inicia sesión para continuar</p>
         </div>
 
+        {olvide ? (
+          <OlvideContrasena emailInicial={email} onVolver={() => setOlvide(false)} />
+        ) : (
         <form onSubmit={submit} className="space-y-3">
           <input
             className="w-full border rounded-xl p-3"
@@ -87,7 +92,13 @@ export default function Login() {
           >
             {loading ? "Procesando..." : "Entrar"}
           </button>
+
+          <button type="button" onClick={() => setOlvide(true)}
+            className="w-full text-sm text-gray-500 hover:text-gray-800 pt-1">
+            ¿Olvidaste tu contraseña?
+          </button>
         </form>
+        )}
       </div>
     </div>
   );
