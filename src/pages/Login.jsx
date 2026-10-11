@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "../lib/supabase";
 import toast from "react-hot-toast";
 import { Eye, EyeOff } from "lucide-react";
+import OlvideContrasena from "../components/OlvideContrasena";
 
 export default function Login() {
   const nav = useNavigate();
@@ -13,6 +14,7 @@ export default function Login() {
   const [password2, setPassword2] = useState("");
   const [showPass, setShowPass] = useState(false);
   const [showPass2, setShowPass2] = useState(false);
+  const [olvide, setOlvide] = useState(false);
   const [fullName, setFullName] = useState("");
   const [businessName, setBusinessName] = useState("");
   const [phone, setPhone] = useState("");
@@ -93,6 +95,10 @@ export default function Login() {
         {/* ── Card ── */}
         <div className="bg-white border border-gray-100 rounded-3xl p-6 shadow-sm">
 
+          {olvide ? (
+            <OlvideContrasena emailInicial={email} onVolver={() => setOlvide(false)} />
+          ) : (
+          <>
           {/* Tabs */}
           <div className="flex bg-gray-100 rounded-xl p-1 mb-5">
             <button type="button" onClick={() => setMode("login")}
@@ -210,7 +216,16 @@ export default function Login() {
                 ? "Procesando..."
                 : mode === "login" ? "Entrar" : "Crear cuenta"}
             </button>
+
+            {mode === "login" && (
+              <button type="button" onClick={() => setOlvide(true)}
+                className="w-full text-sm text-gray-500 hover:text-gray-800 pt-1">
+                ¿Olvidaste tu contraseña?
+              </button>
+            )}
           </form>
+          </>
+          )}
         </div>
 
         <p className="text-center text-xs text-gray-400 mt-4">
