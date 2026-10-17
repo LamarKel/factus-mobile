@@ -118,7 +118,8 @@ export default function AppShell({ children }) {
       </aside>
 
       {/* ── CONTENT WRAPPER ──────────────────────────────── */}
-      <div className="flex-1 flex flex-col lg:ml-56 min-h-screen">
+      {/* min-w-0: sin esto, filas anchas (ej. muchas marcas en Facturar) estiran la página más que la pantalla */}
+      <div className="flex-1 min-w-0 flex flex-col lg:ml-56 min-h-screen">
 
         {/* ── TOPBAR (mobile + desktop) ──────────────────── */}
         <header className="sticky top-0 z-20 bg-white/90 backdrop-blur border-b border-gray-100">
