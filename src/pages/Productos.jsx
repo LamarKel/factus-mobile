@@ -79,10 +79,25 @@ export default function Productos() {
     setShowForm(true);
   };
 
-  const removeProducto = async (id) => {
-    if (!confirm("¿Eliminar este producto?")) return;
-    const { error } = await supabase.from("products").delete().eq("id", id);
-    if (error) { alert(error.message); return; }
+  // No se elimina lo que todavía tiene stock (en combos, las unidades armadas se perderían)
+  const tieneStock = (p) => Number(p.cantidad ?? 0) > 0;
+
+  const removeProducto = async (p) => {
+    if (tieneStock(p)) {
+      alert(p.es_combo
+        ? `Este combo tiene ${p.cantidad} armado(s). Desármalo en Combos antes de eliminarlo.`
+        : `Este producto tiene ${p.cantidad} en stock. Deja el stock en 0 antes de eliminarlo.`);
+      return;
+    }
+    if (!confirm(`¿Eliminar "${p.nombre}"?`)) return;
+    const { error } = await supabase.from("products").delete().eq("id", p.id);
+    if (error) {
+      // 23503: está en facturas, compras o es parte de un combo
+      alert(error.code === "23503"
+        ? "No se puede eliminar porque ya está en facturas, compras o forma parte de un combo."
+        : error.message);
+      return;
+    }
     fetchProductos();
   };
 
@@ -247,8 +262,9 @@ export default function Productos() {
                           className="text-xs px-3 py-1.5 border border-gray-100 rounded-lg text-gray-600 hover:bg-gray-50">
                           Editar
                         </button>
-                        <button onClick={() => removeProducto(p.id)}
-                          className="text-xs px-3 py-1.5 border border-red-100 rounded-lg text-red-500 hover:bg-red-50">
+                        <button onClick={() => removeProducto(p)}
+                          title={tieneStock(p) ? "Tiene stock: no se puede eliminar" : undefined}
+                          className={`text-xs px-3 py-1.5 border rounded-lg ${tieneStock(p) ? "border-gray-100 text-gray-300" : "border-red-100 text-red-500 hover:bg-red-50"}`}>
                           Eliminar
                         </button>
                       </div>
@@ -306,8 +322,8 @@ export default function Productos() {
                       className="flex-1 py-1.5 border border-gray-100 rounded-lg text-[10px] font-medium text-gray-600">
                       Editar
                     </button>
-                    <button onClick={() => removeProducto(p.id)}
-                      className="flex-1 py-1.5 border border-red-100 rounded-lg text-[10px] font-medium text-red-500">
+                    <button onClick={() => removeProducto(p)}
+                      className={`flex-1 py-1.5 border rounded-lg text-[10px] font-medium ${tieneStock(p) ? "border-gray-100 text-gray-300" : "border-red-100 text-red-500"}`}>
                       Eliminar
                     </button>
                   </div>
